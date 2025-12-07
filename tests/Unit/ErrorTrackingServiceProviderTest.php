@@ -7,6 +7,7 @@ use FeatureFlags\Cache\FlagCache;
 use FeatureFlags\Client\ApiClient;
 use FeatureFlags\Context\RequestContext;
 use FeatureFlags\ContextResolver;
+use FeatureFlags\Evaluation\OperatorEvaluator;
 use FeatureFlags\FeatureFlags;
 use FeatureFlags\FeatureFlagsConfig;
 use FeatureFlags\Integrations\ErrorTrackingServiceProvider;
@@ -257,6 +258,7 @@ class ErrorTrackingServiceProviderTest extends TestCase
             Mockery::mock(ConversionCollector::class),
             $mockErrorCollector,
             $stateTracker,
+            new OperatorEvaluator(),
             true,
         );
 

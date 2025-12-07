@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace FeatureFlags\Console;
 
-use FeatureFlags\FeatureFlags;
+use FeatureFlags\Contracts\FeatureFlagsInterface;
 use Illuminate\Console\Command;
 
 class SyncCommand extends Command
@@ -15,7 +15,7 @@ class SyncCommand extends Command
     /** @var string */
     protected $description = 'Sync feature flags from the API';
 
-    public function handle(FeatureFlags $featureFlags): int
+    public function handle(FeatureFlagsInterface $featureFlags): int
     {
         $this->info('Syncing feature flags...');
 

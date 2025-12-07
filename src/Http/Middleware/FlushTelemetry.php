@@ -13,13 +13,13 @@ use FeatureFlags\Telemetry\TelemetryCollector;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
-class FlushTelemetry
+readonly class FlushTelemetry
 {
     public function __construct(
-        private readonly TelemetryCollector $telemetryCollector,
-        private readonly ConversionCollector $conversionCollector,
-        private readonly ErrorCollector $errorCollector,
-        private readonly FlagStateTracker $stateTracker,
+        private TelemetryCollector  $telemetryCollector,
+        private ConversionCollector $conversionCollector,
+        private ErrorCollector      $errorCollector,
+        private FlagStateTracker    $stateTracker,
     ) {}
 
     /**
@@ -34,7 +34,7 @@ class FlushTelemetry
         return $response;
     }
 
-    public function terminate(Request $request, Response $response): void
+    public function terminate(): void
     {
         $this->telemetryCollector->flush();
         $this->conversionCollector->flush();

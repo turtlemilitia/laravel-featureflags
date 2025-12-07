@@ -6,6 +6,7 @@ namespace FeatureFlags;
 
 use FeatureFlags\Cache\FlagCache;
 use FeatureFlags\Client\ApiClient;
+use FeatureFlags\Evaluation\OperatorEvaluator;
 use FeatureFlags\Telemetry\ConversionCollector;
 use FeatureFlags\Telemetry\ErrorCollector;
 use FeatureFlags\Telemetry\FlagStateTracker;
@@ -21,6 +22,7 @@ final readonly class FeatureFlagsConfig
         public ConversionCollector $conversions,
         public ErrorCollector $errors,
         public FlagStateTracker $stateTracker,
+        public OperatorEvaluator $operatorEvaluator,
         public bool $cacheEnabled = true,
     ) {}
 }

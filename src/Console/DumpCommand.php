@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace FeatureFlags\Console;
 
-use FeatureFlags\FeatureFlags;
+use FeatureFlags\Contracts\FeatureFlagsInterface;
 use Illuminate\Console\Command;
 
 class DumpCommand extends Command
@@ -15,7 +15,7 @@ class DumpCommand extends Command
 
     protected $description = 'Export current flags to local config format for offline development';
 
-    public function handle(FeatureFlags $featureFlags): int
+    public function handle(FeatureFlagsInterface $featureFlags): int
     {
         if ($featureFlags->isLocalMode()) {
             $this->error('Cannot dump flags while in local mode. Disable FEATUREFLAGS_LOCAL_MODE first.');
@@ -46,7 +46,9 @@ class DumpCommand extends Command
         };
 
         if ($output !== null && $output !== '') {
-            file_put_contents($output, $content);
+            if (!$this->writeToFile($output, $content)) {
+                return self::FAILURE;
+            }
             $this->info("Exported " . count($flags) . " flag(s) to {$output}");
         } else {
             $this->line('');
@@ -187,5 +189,31 @@ class DumpCommand extends Command
         }
 
         return 'null';
+    }
+
+    private function writeToFile(string $path, string $content): bool
+    {
+        $directory = dirname($path);
+
+        if (!is_dir($directory)) {
+            if (!mkdir($directory, 0755, true) && !is_dir($directory)) {
+                $this->error("Failed to create directory: {$directory}");
+                return false;
+            }
+        }
+
+        if (!is_writable($directory)) {
+            $this->error("Directory is not writable: {$directory}");
+            return false;
+        }
+
+        $result = file_put_contents($path, $content);
+
+        if ($result === false) {
+            $this->error("Failed to write to file: {$path}");
+            return false;
+        }
+
+        return true;
     }
 }

@@ -15,6 +15,9 @@ class ApiClient
     private const CIRCUIT_BREAKER_FAILURES_KEY = 'featureflags:circuit_breaker_failures';
 
     private Client $client;
+    private readonly bool $circuitBreakerEnabled;
+    private readonly int $circuitBreakerThreshold;
+    private readonly int $circuitBreakerCooldown;
 
     public function __construct(
         private readonly string $apiUrl,
@@ -31,6 +34,15 @@ class ApiClient
                 'Authorization' => 'Bearer ' . ($this->apiKey ?? ''),
             ],
         ]);
+
+        $enabled = config('featureflags.sync.circuit_breaker.enabled', true);
+        $this->circuitBreakerEnabled = is_bool($enabled) ? $enabled : true;
+
+        $threshold = config('featureflags.sync.circuit_breaker.failure_threshold', 5);
+        $this->circuitBreakerThreshold = is_int($threshold) ? $threshold : 5;
+
+        $cooldown = config('featureflags.sync.circuit_breaker.cooldown_seconds', 30);
+        $this->circuitBreakerCooldown = is_int($cooldown) ? $cooldown : 30;
     }
 
     /**
@@ -152,9 +164,7 @@ class ApiClient
 
     private function isCircuitOpen(): bool
     {
-        /** @var bool $circuitBreakerEnabled */
-        $circuitBreakerEnabled = config('featureflags.sync.circuit_breaker.enabled', true);
-        if (!$circuitBreakerEnabled) {
+        if (!$this->circuitBreakerEnabled) {
             return false;
         }
 
@@ -163,9 +173,7 @@ class ApiClient
 
     private function recordSuccess(): void
     {
-        /** @var bool $circuitBreakerEnabled */
-        $circuitBreakerEnabled = config('featureflags.sync.circuit_breaker.enabled', true);
-        if (!$circuitBreakerEnabled) {
+        if (!$this->circuitBreakerEnabled) {
             return;
         }
 
@@ -175,30 +183,23 @@ class ApiClient
 
     private function recordFailure(): void
     {
-        /** @var bool $circuitBreakerEnabled */
-        $circuitBreakerEnabled = config('featureflags.sync.circuit_breaker.enabled', true);
-        if (!$circuitBreakerEnabled) {
+        if (!$this->circuitBreakerEnabled) {
             return;
         }
 
-        /** @var int $threshold */
-        $threshold = config('featureflags.sync.circuit_breaker.failure_threshold', 5);
-        /** @var int $cooldownSeconds */
-        $cooldownSeconds = config('featureflags.sync.circuit_breaker.cooldown_seconds', 30);
-
         if (!Cache::has(self::CIRCUIT_BREAKER_FAILURES_KEY)) {
-            Cache::put(self::CIRCUIT_BREAKER_FAILURES_KEY, 0, $cooldownSeconds * 2);
+            Cache::put(self::CIRCUIT_BREAKER_FAILURES_KEY, 0, $this->circuitBreakerCooldown * 2);
         }
 
         /** @var int|bool $failures */
         $failures = Cache::increment(self::CIRCUIT_BREAKER_FAILURES_KEY);
 
         if ($failures === false) {
-            $failures = $threshold;
+            $failures = $this->circuitBreakerThreshold;
         }
 
-        if ($failures >= $threshold) {
-            Cache::put(self::CIRCUIT_BREAKER_KEY, true, $cooldownSeconds);
+        if ($failures >= $this->circuitBreakerThreshold) {
+            Cache::put(self::CIRCUIT_BREAKER_KEY, true, $this->circuitBreakerCooldown);
         }
     }
 }

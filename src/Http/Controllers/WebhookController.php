@@ -4,15 +4,14 @@ declare(strict_types=1);
 
 namespace FeatureFlags\Http\Controllers;
 
-use FeatureFlags\FeatureFlags;
+use FeatureFlags\Contracts\FeatureFlagsInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Log;
 
 class WebhookController
 {
     public function __construct(
-        private readonly FeatureFlags $featureFlags,
+        private readonly FeatureFlagsInterface $featureFlags,
     ) {}
 
     public function __invoke(Request $request): JsonResponse

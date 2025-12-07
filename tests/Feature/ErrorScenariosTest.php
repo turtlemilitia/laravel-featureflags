@@ -13,7 +13,6 @@ use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Request;
-use GuzzleHttp\Psr7\Response;
 use Illuminate\Support\Facades\Cache;
 
 class ErrorScenariosTest extends FeatureTestCase

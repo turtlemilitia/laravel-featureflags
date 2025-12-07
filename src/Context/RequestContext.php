@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace FeatureFlags\Context;
 
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class RequestContext
@@ -29,8 +30,11 @@ class RequestContext
             } else {
                 static::$sessionId = static::$requestId;
             }
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
             // Session not available (console, queue, etc.)
+            Log::debug('Feature flags: Session not available, using request ID as session ID', [
+                'error' => $e->getMessage(),
+            ]);
             static::$sessionId = static::$requestId;
         }
 

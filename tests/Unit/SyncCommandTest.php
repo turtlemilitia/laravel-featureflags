@@ -5,6 +5,7 @@ namespace FeatureFlags\Tests\Unit;
 use FeatureFlags\Cache\FlagCache;
 use FeatureFlags\Client\ApiClient;
 use FeatureFlags\ContextResolver;
+use FeatureFlags\Evaluation\OperatorEvaluator;
 use FeatureFlags\FeatureFlags;
 use FeatureFlags\FeatureFlagsConfig;
 use FeatureFlags\Telemetry\ConversionCollector;
@@ -186,6 +187,7 @@ class SyncCommandTest extends TestCase
             Mockery::mock(ConversionCollector::class),
             Mockery::mock(ErrorCollector::class),
             $mockStateTracker,
+            new OperatorEvaluator(),
             true,
         );
 

@@ -2,8 +2,7 @@
 
 namespace FeatureFlags\Tests\Unit;
 
-use FeatureFlags\Cache\FlagCache;
-use FeatureFlags\Client\ApiClient;
+use FeatureFlags\Contracts\FeatureFlagsInterface;
 use FeatureFlags\FeatureFlags;
 use FeatureFlags\Tests\TestCase;
 use Mockery;
@@ -121,7 +120,7 @@ class DumpCommandTest extends TestCase
      */
     private function mockFeatureFlagsForDump(array $flags): void
     {
-        $mockFeatureFlags = Mockery::mock(FeatureFlags::class);
+        $mockFeatureFlags = Mockery::mock(FeatureFlagsInterface::class);
         $mockFeatureFlags->shouldReceive('isLocalMode')->andReturn(false);
         $mockFeatureFlags->shouldReceive('sync')->andReturnNull();
         $mockFeatureFlags->shouldReceive('all')->andReturn($flags);

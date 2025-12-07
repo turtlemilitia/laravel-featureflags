@@ -2,7 +2,7 @@
 
 namespace FeatureFlags\Tests\Unit;
 
-use FeatureFlags\FeatureFlags;
+use FeatureFlags\Contracts\FeatureFlagsInterface;
 use FeatureFlags\Http\Controllers\WebhookController;
 use FeatureFlags\Tests\TestCase;
 use Illuminate\Http\Request;
@@ -29,7 +29,7 @@ class WebhookControllerTest extends TestCase
         $request->headers->set('Content-Type', 'application/json');
 
         // Only mock the FeatureFlags since it would make API calls
-        $mockFeatureFlags = Mockery::mock(FeatureFlags::class);
+        $mockFeatureFlags = Mockery::mock(FeatureFlagsInterface::class);
         $mockFeatureFlags->shouldReceive('flush')->once();
         $mockFeatureFlags->shouldReceive('sync')->once();
 
@@ -51,7 +51,7 @@ class WebhookControllerTest extends TestCase
         $request->headers->set('X-FeatureFlags-Signature', 'invalid-signature');
 
         // Mock won't have flush/sync called, but we still need to provide it
-        $mockFeatureFlags = Mockery::mock(FeatureFlags::class);
+        $mockFeatureFlags = Mockery::mock(FeatureFlagsInterface::class);
 
         $controller = new WebhookController($mockFeatureFlags);
         $response = $controller($request);
@@ -67,7 +67,7 @@ class WebhookControllerTest extends TestCase
         $payload = json_encode(['event' => 'flag.updated']);
         $request = Request::create('/webhooks/feature-flags', 'POST', [], [], [], [], $payload);
 
-        $mockFeatureFlags = Mockery::mock(FeatureFlags::class);
+        $mockFeatureFlags = Mockery::mock(FeatureFlagsInterface::class);
 
         $controller = new WebhookController($mockFeatureFlags);
         $response = $controller($request);
@@ -84,7 +84,7 @@ class WebhookControllerTest extends TestCase
             'CONTENT_TYPE' => 'application/json',
         ], $payload);
 
-        $mockFeatureFlags = Mockery::mock(FeatureFlags::class);
+        $mockFeatureFlags = Mockery::mock(FeatureFlagsInterface::class);
 
         $controller = new WebhookController($mockFeatureFlags);
         $response = $controller($request);
@@ -102,7 +102,7 @@ class WebhookControllerTest extends TestCase
             'CONTENT_TYPE' => 'application/json',
         ], $payload);
 
-        $mockFeatureFlags = Mockery::mock(FeatureFlags::class);
+        $mockFeatureFlags = Mockery::mock(FeatureFlagsInterface::class);
 
         $controller = new WebhookController($mockFeatureFlags);
         $response = $controller($request);
@@ -124,7 +124,7 @@ class WebhookControllerTest extends TestCase
         ], $payload);
         $request->headers->set('X-FeatureFlags-Signature', $signature);
 
-        $mockFeatureFlags = Mockery::mock(FeatureFlags::class);
+        $mockFeatureFlags = Mockery::mock(FeatureFlagsInterface::class);
         $mockFeatureFlags->shouldReceive('flush')->once();
         $mockFeatureFlags->shouldReceive('sync')->once();
 
@@ -147,7 +147,7 @@ class WebhookControllerTest extends TestCase
         ], $payload);
         $request->headers->set('X-FeatureFlags-Signature', $signature);
 
-        $mockFeatureFlags = Mockery::mock(FeatureFlags::class);
+        $mockFeatureFlags = Mockery::mock(FeatureFlagsInterface::class);
         $mockFeatureFlags->shouldReceive('flush')->once();
         $mockFeatureFlags->shouldReceive('sync')->once();
 
@@ -170,7 +170,7 @@ class WebhookControllerTest extends TestCase
         ], $payload);
         $request->headers->set('X-FeatureFlags-Signature', $signature);
 
-        $mockFeatureFlags = Mockery::mock(FeatureFlags::class);
+        $mockFeatureFlags = Mockery::mock(FeatureFlagsInterface::class);
         $mockFeatureFlags->shouldReceive('flush')->once();
         $mockFeatureFlags->shouldReceive('sync')->once();
 
@@ -194,7 +194,7 @@ class WebhookControllerTest extends TestCase
         $request->headers->set('X-FeatureFlags-Signature', $signature);
 
         // Use a spy to verify flush/sync are NOT called
-        $mockFeatureFlags = Mockery::mock(FeatureFlags::class);
+        $mockFeatureFlags = Mockery::mock(FeatureFlagsInterface::class);
         $mockFeatureFlags->shouldNotReceive('flush');
         $mockFeatureFlags->shouldNotReceive('sync');
 
@@ -218,7 +218,7 @@ class WebhookControllerTest extends TestCase
         ], $payload);
         $request->headers->set('X-FeatureFlags-Signature', $signature);
 
-        $mockFeatureFlags = Mockery::mock(FeatureFlags::class);
+        $mockFeatureFlags = Mockery::mock(FeatureFlagsInterface::class);
         $mockFeatureFlags->shouldNotReceive('flush');
         $mockFeatureFlags->shouldNotReceive('sync');
 
@@ -242,7 +242,7 @@ class WebhookControllerTest extends TestCase
         $request = Request::create('/webhooks/feature-flags', 'POST', [], [], [], [], $payload);
         $request->headers->set('X-FeatureFlags-Signature', $almostValidSignature);
 
-        $mockFeatureFlags = Mockery::mock(FeatureFlags::class);
+        $mockFeatureFlags = Mockery::mock(FeatureFlagsInterface::class);
 
         $controller = new WebhookController($mockFeatureFlags);
         $response = $controller($request);

@@ -4,8 +4,8 @@ namespace FeatureFlags\Tests\Unit;
 
 use FeatureFlags\Cache\FlagCache;
 use FeatureFlags\Client\ApiClient;
-use FeatureFlags\Context;
 use FeatureFlags\ContextResolver;
+use FeatureFlags\Evaluation\OperatorEvaluator;
 use FeatureFlags\Facades\Feature;
 use FeatureFlags\FeatureFlags;
 use FeatureFlags\FeatureFlagsConfig;
@@ -121,6 +121,7 @@ class FeatureFacadeTest extends TestCase
             Mockery::mock(ConversionCollector::class),
             Mockery::mock(ErrorCollector::class),
             new FlagStateTracker(),
+            new OperatorEvaluator(),
             true,
         );
 

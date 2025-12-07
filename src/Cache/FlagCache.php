@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace FeatureFlags\Cache;
 
 use Illuminate\Contracts\Cache\Repository as CacheRepository;
+use Psr\SimpleCache\InvalidArgumentException;
 
 class FlagCache
 {
@@ -20,7 +21,9 @@ class FlagCache
         private readonly int $defaultTtl,
     ) {}
 
-    /** @return array<int, array<string, mixed>>|null */
+    /** @return array<int, array<string, mixed>>|null
+     * @throws InvalidArgumentException
+     */
     public function all(): ?array
     {
         /** @var array<int, array<string, mixed>>|null $flags */
@@ -49,7 +52,10 @@ class FlagCache
         $this->ensureFlagsIndexed();
     }
 
-    /** @return array<int, array<string, mixed>>|null */
+    /**
+     * @return array<int, array<string, mixed>>|null
+     * @throws InvalidArgumentException
+     */
     public function allSegments(): ?array
     {
         /** @var array<int, array<string, mixed>>|null $segments */

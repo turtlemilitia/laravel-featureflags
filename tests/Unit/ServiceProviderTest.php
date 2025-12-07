@@ -4,8 +4,8 @@ namespace FeatureFlags\Tests\Unit;
 
 use FeatureFlags\Cache\FlagCache;
 use FeatureFlags\Client\ApiClient;
-use FeatureFlags\Context;
 use FeatureFlags\ContextResolver;
+use FeatureFlags\Contracts\FeatureFlagsInterface;
 use FeatureFlags\FeatureFlags;
 use FeatureFlags\FeatureFlagsServiceProvider;
 use FeatureFlags\Telemetry\ConversionCollector;
@@ -227,7 +227,7 @@ class ServiceProviderTest extends TestCase
         config(['featureflags.api_key' => 'test-key']);
 
         // Mock FeatureFlags to verify sync is called
-        $mockFeatureFlags = \Mockery::mock(FeatureFlags::class);
+        $mockFeatureFlags = \Mockery::mock(FeatureFlagsInterface::class);
         $mockFeatureFlags->shouldReceive('sync')->once();
 
         $this->app->instance(FeatureFlags::class, $mockFeatureFlags);
@@ -244,7 +244,7 @@ class ServiceProviderTest extends TestCase
         config(['featureflags.api_key' => null]);
 
         // FeatureFlags::sync should NOT be called
-        $mockFeatureFlags = \Mockery::mock(FeatureFlags::class);
+        $mockFeatureFlags = \Mockery::mock(FeatureFlagsInterface::class);
         $mockFeatureFlags->shouldNotReceive('sync');
 
         $this->app->instance(FeatureFlags::class, $mockFeatureFlags);
@@ -260,7 +260,7 @@ class ServiceProviderTest extends TestCase
         config(['featureflags.sync.on_boot' => true]);
         config(['featureflags.api_key' => '']);
 
-        $mockFeatureFlags = \Mockery::mock(FeatureFlags::class);
+        $mockFeatureFlags = \Mockery::mock(FeatureFlagsInterface::class);
         $mockFeatureFlags->shouldNotReceive('sync');
 
         $this->app->instance(FeatureFlags::class, $mockFeatureFlags);

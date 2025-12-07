@@ -6,7 +6,8 @@ namespace FeatureFlags;
 
 use FeatureFlags\Cache\FlagCache;
 use FeatureFlags\Client\ApiClient;
-use FeatureFlags\Context\RequestContext;
+use FeatureFlags\Contracts\FeatureFlagsInterface;
+use FeatureFlags\Evaluation\OperatorEvaluator;
 use FeatureFlags\Http\Controllers\WebhookController;
 use FeatureFlags\Http\Middleware\FlushTelemetry;
 use FeatureFlags\Telemetry\ConversionCollector;
@@ -76,6 +77,8 @@ class FeatureFlagsServiceProvider extends ServiceProvider
 
         $this->app->singleton(FlagStateTracker::class, fn(): FlagStateTracker => new FlagStateTracker());
 
+        $this->app->singleton(OperatorEvaluator::class, fn(): OperatorEvaluator => new OperatorEvaluator());
+
         $this->app->singleton(FeatureFlagsConfig::class, function (Application $app): FeatureFlagsConfig {
             $cacheEnabled = config('featureflags.cache.enabled', true);
 
@@ -87,6 +90,7 @@ class FeatureFlagsServiceProvider extends ServiceProvider
                 $app->make(ConversionCollector::class),
                 $app->make(ErrorCollector::class),
                 $app->make(FlagStateTracker::class),
+                $app->make(OperatorEvaluator::class),
                 (bool) $cacheEnabled,
             );
         });
@@ -94,6 +98,8 @@ class FeatureFlagsServiceProvider extends ServiceProvider
         $this->app->singleton(FeatureFlags::class, function (Application $app): FeatureFlags {
             return new FeatureFlags($app->make(FeatureFlagsConfig::class));
         });
+
+        $this->app->bind(FeatureFlagsInterface::class, FeatureFlags::class);
 
         $this->app->alias(FeatureFlags::class, 'featureflags');
     }

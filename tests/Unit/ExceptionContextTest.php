@@ -6,6 +6,8 @@ use FeatureFlags\Cache\FlagCache;
 use FeatureFlags\Client\ApiClient;
 use FeatureFlags\Context\RequestContext;
 use FeatureFlags\ContextResolver;
+use FeatureFlags\Contracts\FeatureFlagsInterface;
+use FeatureFlags\Evaluation\OperatorEvaluator;
 use FeatureFlags\FeatureFlags;
 use FeatureFlags\FeatureFlagsConfig;
 use FeatureFlags\Integrations\ExceptionContext;
@@ -158,7 +160,7 @@ class ExceptionContextTest extends TestCase
     public function test_add_flags_catches_exceptions_silently(): void
     {
         // Register a broken FeatureFlags instance that throws
-        $mockFeatureFlags = Mockery::mock(FeatureFlags::class);
+        $mockFeatureFlags = Mockery::mock(FeatureFlagsInterface::class);
         $mockFeatureFlags->shouldReceive('getEvaluatedFlags')
             ->andThrow(new \RuntimeException('Something went wrong'));
 
@@ -174,7 +176,7 @@ class ExceptionContextTest extends TestCase
     public function test_get_flags_catches_exceptions_silently(): void
     {
         // Register a broken FeatureFlags instance that throws
-        $mockFeatureFlags = Mockery::mock(FeatureFlags::class);
+        $mockFeatureFlags = Mockery::mock(FeatureFlagsInterface::class);
         $mockFeatureFlags->shouldReceive('getErrorContext')
             ->andThrow(new \RuntimeException('Something went wrong'));
 
@@ -197,6 +199,7 @@ class ExceptionContextTest extends TestCase
             Mockery::mock(ConversionCollector::class),
             Mockery::mock(ErrorCollector::class),
             $stateTracker,
+            new OperatorEvaluator(),
             true,
         );
 

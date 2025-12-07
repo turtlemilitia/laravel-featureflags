@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace FeatureFlags\Console;
 
+use FeatureFlags\Contracts\FeatureFlagsInterface;
 use FeatureFlags\Exceptions\FlagSyncException;
-use FeatureFlags\FeatureFlags;
 use Illuminate\Console\Command;
 
 class WarmCommand extends Command
@@ -18,7 +18,7 @@ class WarmCommand extends Command
     /** @var string */
     protected $description = 'Pre-warm the feature flags cache (run during deployment)';
 
-    public function handle(FeatureFlags $featureFlags): int
+    public function handle(FeatureFlagsInterface $featureFlags): int
     {
         if ($featureFlags->isLocalMode()) {
             $this->info('Local mode enabled - cache warming not needed.');

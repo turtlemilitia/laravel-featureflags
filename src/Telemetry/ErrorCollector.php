@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace FeatureFlags\Telemetry;
 
 use FeatureFlags\Context\RequestContext;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class ErrorCollector extends AbstractCollector
@@ -79,7 +80,11 @@ class ErrorCollector extends AbstractCollector
     {
         try {
             return app(FlagStateTracker::class)->getValue($flagKey);
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            Log::debug('Feature flags: Could not retrieve tracked flag value', [
+                'flag_key' => $flagKey,
+                'error' => $e->getMessage(),
+            ]);
             return null;
         }
     }
@@ -91,7 +96,10 @@ class ErrorCollector extends AbstractCollector
             $id = $user?->getAuthIdentifier();
 
             return is_string($id) || is_int($id) ? (string) $id : null;
-        } catch (\Throwable) {
+        } catch (\Throwable $e) {
+            Log::debug('Feature flags: Could not retrieve current context ID', [
+                'error' => $e->getMessage(),
+            ]);
             return null;
         }
     }

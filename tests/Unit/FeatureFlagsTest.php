@@ -7,6 +7,7 @@ use FeatureFlags\Client\ApiClient;
 use FeatureFlags\Context;
 use FeatureFlags\Context\RequestContext;
 use FeatureFlags\ContextResolver;
+use FeatureFlags\Evaluation\OperatorEvaluator;
 use FeatureFlags\FeatureFlags;
 use FeatureFlags\FeatureFlagsConfig;
 use FeatureFlags\Telemetry\ConversionCollector;
@@ -15,16 +16,17 @@ use FeatureFlags\Telemetry\FlagStateTracker;
 use FeatureFlags\Telemetry\TelemetryCollector;
 use FeatureFlags\Tests\TestCase;
 use Mockery;
+use Mockery\MockInterface;
 
 class FeatureFlagsTest extends TestCase
 {
     private FeatureFlags $featureFlags;
-    private $mockApiClient;
-    private $mockCache;
-    private $mockTelemetry;
-    private $mockConversions;
-    private $mockErrors;
-    private $stateTracker;
+    private ApiClient $mockApiClient;
+    private FlagCache $mockCache;
+    private TelemetryCollector $mockTelemetry;
+    private ConversionCollector $mockConversions;
+    private ErrorCollector $mockErrors;
+    private FlagStateTracker $stateTracker;
 
     protected function setUp(): void
     {
@@ -43,11 +45,12 @@ class FeatureFlagsTest extends TestCase
         $config = new FeatureFlagsConfig(
             $this->mockApiClient,
             $this->mockCache,
-            new ContextResolver(config('featureflags.context')),
+            new ContextResolver(),
             $this->mockTelemetry,
             $this->mockConversions,
             $this->mockErrors,
             $this->stateTracker,
+            new OperatorEvaluator(),
             true,
         );
 
@@ -67,11 +70,12 @@ class FeatureFlagsTest extends TestCase
         $config = new FeatureFlagsConfig(
             $apiClient ?? $this->mockApiClient,
             $cache ?? $this->mockCache,
-            $contextResolver ?? new ContextResolver(config('featureflags.context')),
+            $contextResolver ?? new ContextResolver(),
             $telemetry ?? $this->mockTelemetry,
             $conversions ?? $this->mockConversions,
             $errors ?? $this->mockErrors,
             $stateTracker ?? new FlagStateTracker(),
+            new OperatorEvaluator(),
             $cacheEnabled,
         );
 

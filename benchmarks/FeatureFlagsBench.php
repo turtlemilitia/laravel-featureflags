@@ -8,6 +8,7 @@ use FeatureFlags\Cache\FlagCache;
 use FeatureFlags\Client\ApiClient;
 use FeatureFlags\Context;
 use FeatureFlags\ContextResolver;
+use FeatureFlags\Evaluation\OperatorEvaluator;
 use FeatureFlags\FeatureFlags;
 use FeatureFlags\FeatureFlagsConfig;
 use FeatureFlags\Telemetry\ConversionCollector;
@@ -61,6 +62,7 @@ class FeatureFlagsBench
             $this->createMockConversions(),
             $this->createMockErrors(),
             new FlagStateTracker(),
+            new OperatorEvaluator(),
             true,
         );
 
@@ -74,6 +76,7 @@ class FeatureFlagsBench
             $this->createMockConversions(),
             $this->createMockErrors(),
             new FlagStateTracker(),
+            new OperatorEvaluator(),
             true,
         );
 
@@ -88,6 +91,7 @@ class FeatureFlagsBench
             $this->createMockConversions(),
             $this->createMockErrors(),
             new FlagStateTracker(),
+            new OperatorEvaluator(),
             true,
         );
         $this->featureFlagsWithFileCache = new FeatureFlags($configWithFileCache);
@@ -108,6 +112,7 @@ class FeatureFlagsBench
             $this->createMockConversions(),
             $this->createMockErrors(),
             new FlagStateTracker(),
+            new OperatorEvaluator(),
             true,
         );
         $this->featureFlagsWithAutoContext = new FeatureFlags($configWithAutoContext);
@@ -759,6 +764,7 @@ class FeatureFlagsBench
             $this->createMockConversions(),
             $this->createMockErrors(),
             new FlagStateTracker(),
+            new OperatorEvaluator(),
             true,
         );
 
@@ -787,6 +793,7 @@ class FeatureFlagsBench
             $this->createMockConversions(),
             $this->createMockErrors(),
             new FlagStateTracker(),
+            new OperatorEvaluator(),
             true,
         );
 

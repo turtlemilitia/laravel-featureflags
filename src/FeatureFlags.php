@@ -4,30 +4,25 @@ declare(strict_types=1);
 
 namespace FeatureFlags;
 
+use FeatureFlags\Contracts\FeatureFlagsInterface;
 use FeatureFlags\Contracts\HasFeatureFlagContext;
+use FeatureFlags\Evaluation\MatchReason;
 use FeatureFlags\Events\FlagEvaluated;
 use FeatureFlags\Events\FlagSyncCompleted;
 use FeatureFlags\Exceptions\ApiException;
 use FeatureFlags\Exceptions\FlagSyncException;
 use FeatureFlags\Context\RequestContext;
 use FeatureFlags\Telemetry\FlagStateTracker;
-use Illuminate\Support\Facades\Log;
 use Throwable;
 
-/**
- * @phpstan-type FlagValue bool|int|float|string|array<string, mixed>|null
- */
-
-class FeatureFlags
+readonly class FeatureFlags implements FeatureFlagsInterface
 {
-    private readonly bool $localModeEnabled;
+    private bool $localModeEnabled;
     /** @var array<string, mixed> */
-    private readonly array $localFlags;
-    /** @var array<string, true> */
-    private static array $loggedBadPatterns = [];
+    private array $localFlags;
 
     public function __construct(
-        private readonly FeatureFlagsConfig $config,
+        private FeatureFlagsConfig $config,
     ) {
         $enabled = config('featureflags.local.enabled', false);
         $this->localModeEnabled = is_bool($enabled) ? $enabled : false;
@@ -61,9 +56,9 @@ class FeatureFlags
 
         if ($flag === null) {
             $durationMs = (hrtime(true) - $startTime) / 1_000_000;
-            $this->config->telemetry->record($key, false, null, null, 'not_found', (int) $durationMs);
+            $this->config->telemetry->record($key, false, null, null, MatchReason::NotFound->value, (int) $durationMs);
             $this->config->stateTracker->record($key, false, null);
-            $this->dispatchFlagEvaluatedEvent($key, false, 'not_found', null, $durationMs, null);
+            $this->dispatchFlagEvaluatedEvent($key, false, MatchReason::NotFound->value, null, $durationMs, null);
             return false;
         }
 
@@ -334,6 +329,9 @@ class FeatureFlags
         ];
     }
 
+    /**
+     * @throws FlagSyncException
+     */
     private function ensureFlagsLoaded(): void
     {
         if ($this->config->cacheEnabled && $this->config->cache->has()) {
@@ -416,7 +414,7 @@ class FeatureFlags
             return [
                 'value' => $this->normalizeFlagValue($flag['default_value'] ?? false),
                 'matched_rule_index' => null,
-                'match_reason' => 'disabled',
+                'match_reason' => MatchReason::Disabled->value,
             ];
         }
 
@@ -427,7 +425,7 @@ class FeatureFlags
                 return [
                     'value' => $this->normalizeFlagValue($flag['default_value'] ?? false),
                     'matched_rule_index' => null,
-                    'match_reason' => 'dependency',
+                    'match_reason' => MatchReason::Dependency->value,
                 ];
             }
         }
@@ -442,7 +440,7 @@ class FeatureFlags
                 return [
                     'value' => $ruleResult['value'],
                     'matched_rule_index' => $ruleResult['index'],
-                    'match_reason' => 'rule',
+                    'match_reason' => MatchReason::Rule->value,
                 ];
             }
         }
@@ -454,7 +452,7 @@ class FeatureFlags
                 return [
                     'value' => false,
                     'matched_rule_index' => null,
-                    'match_reason' => 'rollout_miss',
+                    'match_reason' => MatchReason::RolloutMiss->value,
                 ];
             }
 
@@ -464,20 +462,20 @@ class FeatureFlags
                 return [
                     'value' => $this->normalizeFlagValue($flag['default_value'] ?? true),
                     'matched_rule_index' => -1,
-                    'match_reason' => 'rollout',
+                    'match_reason' => MatchReason::Rollout->value,
                 ];
             }
             return [
                 'value' => false,
                 'matched_rule_index' => null,
-                'match_reason' => 'rollout_miss',
+                'match_reason' => MatchReason::RolloutMiss->value,
             ];
         }
 
         return [
             'value' => $this->normalizeFlagValue($flag['default_value'] ?? true),
             'matched_rule_index' => null,
-            'match_reason' => 'default',
+            'match_reason' => MatchReason::Default->value,
         ];
     }
 
@@ -607,8 +605,19 @@ class FeatureFlags
             return $this->segmentMatches($segmentKey, $context, $flagKey);
         }
 
+        return $this->evaluateTraitCondition($condition, $context, $flagKey);
+    }
+
+    /** @param array<string, mixed> $condition */
+    private function evaluateTraitCondition(array $condition, Context $context, string $flagKey = ''): bool
+    {
         /** @var string $trait */
         $trait = $condition['trait'] ?? '';
+
+        if ($trait === '') {
+            return false;
+        }
+
         /** @var string $operator */
         $operator = $condition['operator'] ?? 'equals';
         /** @var mixed $expected */
@@ -621,122 +630,7 @@ class FeatureFlags
 
     private function compareValues(mixed $actual, string $operator, mixed $expected, string $flagKey = ''): bool
     {
-        return match ($operator) {
-            'equals' => $actual == $expected,
-            'not_equals' => $actual != $expected,
-            'contains' => is_string($actual) && is_string($expected) && str_contains($actual, $expected),
-            'not_contains' => is_string($actual) && is_string($expected) && !str_contains($actual, $expected),
-            'matches_regex' => $this->matchesRegex($actual, $expected),
-            'gt' => is_numeric($actual) && is_numeric($expected) && $actual > $expected,
-            'gte' => is_numeric($actual) && is_numeric($expected) && $actual >= $expected,
-            'lt' => is_numeric($actual) && is_numeric($expected) && $actual < $expected,
-            'lte' => is_numeric($actual) && is_numeric($expected) && $actual <= $expected,
-            'in' => is_array($expected) && in_array($actual, $expected, false),
-            'not_in' => is_array($expected) && !in_array($actual, $expected, false),
-            'semver_gt' => is_string($actual) && is_string($expected) && version_compare($actual, $expected, '>'),
-            'semver_gte' => is_string($actual) && is_string($expected) && version_compare($actual, $expected, '>='),
-            'semver_lt' => is_string($actual) && is_string($expected) && version_compare($actual, $expected, '<'),
-            'semver_lte' => is_string($actual) && is_string($expected) && version_compare($actual, $expected, '<='),
-            'before_date' => $this->compareDates($actual, $expected, '<'),
-            'after_date' => $this->compareDates($actual, $expected, '>'),
-            'percentage_of' => $this->isInAttributePercentage($actual, $expected, $flagKey),
-            default => false,
-        };
-    }
-
-    /**
-     * Check if a value falls within a percentage bucket (attribute-based rollout).
-     *
-     * This allows targeting like "50% of users with this attribute value".
-     * Uses sticky bucketing based on the flag key + attribute value, so the
-     * same attribute value will consistently be in or out of the percentage.
-     *
-     * Example condition: {"trait": "id", "operator": "percentage_of", "value": 50}
-     * This targets 50% of users based on their ID.
-     */
-    private function isInAttributePercentage(mixed $attributeValue, mixed $percentage, string $flagKey): bool
-    {
-        if (!is_numeric($percentage)) {
-            return false;
-        }
-
-        $pct = (int) $percentage;
-        if ($pct <= 0) {
-            return false;
-        }
-        if ($pct >= 100) {
-            return true;
-        }
-
-        if ($attributeValue === null) {
-            return false;
-        }
-
-        $valueString = is_scalar($attributeValue) ? (string) $attributeValue : json_encode($attributeValue);
-        if ($valueString === false) {
-            return false;
-        }
-
-        return $this->calculateBucket($flagKey . ':' . $valueString) < $pct;
-    }
-
-    private function compareDates(mixed $actual, mixed $expected, string $operator): bool
-    {
-        $actualDate = $this->toDate($actual);
-        $expectedDate = $this->toDate($expected);
-
-        if ($actualDate === null || $expectedDate === null) {
-            return false;
-        }
-
-        return match ($operator) {
-            '<' => $actualDate < $expectedDate,
-            '>' => $actualDate > $expectedDate,
-            '<=' => $actualDate <= $expectedDate,
-            '>=' => $actualDate >= $expectedDate,
-            default => false,
-        };
-    }
-
-    private function matchesRegex(mixed $actual, mixed $pattern): bool
-    {
-        if (!is_string($actual) || !is_string($pattern)) {
-            return false;
-        }
-
-        try {
-            return preg_match($pattern, $actual) === 1;
-        } catch (\Throwable $e) {
-            if (!isset(self::$loggedBadPatterns[$pattern])) {
-                self::$loggedBadPatterns[$pattern] = true;
-                Log::warning('Feature flag regex evaluation failed', [
-                    'pattern' => $pattern,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-            return false;
-        }
-    }
-
-    private function toDate(mixed $value): ?\DateTimeInterface
-    {
-        if ($value instanceof \DateTimeInterface) {
-            return $value;
-        }
-
-        try {
-            if (is_int($value)) {
-                return new \DateTime("@$value");
-            }
-
-            if (is_string($value) && $value !== '') {
-                return new \DateTime($value);
-            }
-
-            return null;
-        } catch (\Exception) {
-            return null;
-        }
+        return $this->config->operatorEvaluator->evaluate($actual, $operator, $expected, $flagKey);
     }
 
     /** Matches if ANY segment rule matches (OR logic). */
@@ -779,31 +673,12 @@ class FeatureFlags
         }
 
         foreach ($conditions as $condition) {
-            if (!$this->traitConditionMatches($condition, $context, $flagKey)) {
+            if (!$this->evaluateTraitCondition($condition, $context, $flagKey)) {
                 return false;
             }
         }
 
         return true;
-    }
-
-    /** @param array<string, mixed> $condition */
-    private function traitConditionMatches(array $condition, Context $context, string $flagKey = ''): bool
-    {
-        /** @var string $trait */
-        $trait = $condition['trait'] ?? '';
-        /** @var string $operator */
-        $operator = $condition['operator'] ?? 'equals';
-        /** @var mixed $expected */
-        $expected = $condition['value'] ?? '';
-
-        if ($trait === '') {
-            return false;
-        }
-
-        $actual = $context->get($trait);
-
-        return $this->compareValues($actual, $operator, $expected, $flagKey);
     }
 
     private function isInRollout(string $flagKey, string|int $contextId, int $percentage): bool
@@ -816,10 +691,21 @@ class FeatureFlags
         return abs(crc32($seed)) % 100;
     }
 
+    private function shouldDispatchEvent(string $eventKey): bool
+    {
+        if (!config('featureflags.events.enabled', false)) {
+            return false;
+        }
+
+        return (bool) config("featureflags.events.dispatch.{$eventKey}", true);
+    }
+
     /**
-     * Dispatch FlagEvaluated event if enabled.
-     *
+     * @param string $flagKey
      * @param bool|int|float|string|array<string, mixed>|null $value
+     * @param string $matchReason
+     * @param int|null $matchedRuleIndex
+     * @param float $durationMs
      * @param string|int|null $contextId
      */
     private function dispatchFlagEvaluatedEvent(
@@ -830,11 +716,7 @@ class FeatureFlags
         float $durationMs,
         string|int|null $contextId,
     ): void {
-        if (!config('featureflags.events.enabled', false)) {
-            return;
-        }
-
-        if (!config('featureflags.events.dispatch.flag_evaluated', true)) {
+        if (!$this->shouldDispatchEvent('flag_evaluated')) {
             return;
         }
 
@@ -857,11 +739,7 @@ class FeatureFlags
         float $durationMs,
         string $source,
     ): void {
-        if (!config('featureflags.events.enabled', false)) {
-            return;
-        }
-
-        if (!config('featureflags.events.dispatch.flag_sync_completed', true)) {
+        if (!$this->shouldDispatchEvent('flag_sync_completed')) {
             return;
         }
 
