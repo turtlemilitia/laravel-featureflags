@@ -1,0 +1,14 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 10
+
+    paths:
+        - src
+
+    excludePaths:
+        - vendor
+
+    # Report unused parameters in closures
+    reportUnmatchedIgnoredErrors: true
