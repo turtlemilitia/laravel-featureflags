@@ -31,7 +31,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.composer/cache/files
-          key: ${{ runner.os }}-php-${{ matrix.php-version }}-laravel-${{ matrix.laravel }}-${{ hashFiles('**/composer.lock') }}
+          key: ${{ runner.os }}-php-${{ matrix.php-version }}-laravel-${{ matrix.laravel }}-${{ hashFiles('**/composer.json') }}
           restore-keys: |
             ${{ runner.os }}-php-${{ matrix.php-version }}-laravel-${{ matrix.laravel }}-
             ${{ runner.os }}-php-${{ matrix.php-version }}-
@@ -40,7 +40,7 @@ jobs:
         run: composer require "illuminate/support:${{ matrix.laravel }}" "illuminate/cache:${{ matrix.laravel }}" "illuminate/http:${{ matrix.laravel }}" --no-update
 
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
+        run: composer update --no-interaction --prefer-dist --no-progress
 
       - name: PHPUnit
         run: vendor/bin/phpunit --coverage-clover=coverage.xml
@@ -72,12 +72,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.composer/cache/files
-          key: ${{ runner.os }}-php-8.2-csfixer-${{ hashFiles('**/composer.lock') }}
+          key: ${{ runner.os }}-php-8.2-csfixer-${{ hashFiles('**/composer.json') }}
           restore-keys: |
             ${{ runner.os }}-php-8.2-csfixer-
 
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
+        run: composer update --no-interaction --prefer-dist --no-progress
 
       - name: Install PHP-CS-Fixer
         run: composer require --dev friendsofphp/php-cs-fixer --no-interaction --no-progress
@@ -103,12 +103,12 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.composer/cache/files
-          key: ${{ runner.os }}-php-8.4-benchmark-${{ hashFiles('**/composer.lock') }}
+          key: ${{ runner.os }}-php-8.4-benchmark-${{ hashFiles('**/composer.json') }}
           restore-keys: |
             ${{ runner.os }}-php-8.4-benchmark-
 
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
+        run: composer update --no-interaction --prefer-dist --no-progress
 
       - name: Run benchmarks with assertions
         run: vendor/bin/phpbench run --report=aggregate --progress=none
@@ -136,7 +136,7 @@ jobs:
           coverage: none
 
       - name: Install dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
+        run: composer update --no-interaction --prefer-dist --no-progress
 
       - name: Run benchmarks on PR branch
         run: |
