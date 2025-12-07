@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: Tests (PHP ${{ matrix.php-version }}, Laravel ${{ matrix.laravel }})
+    name: Quality (PHP ${{ matrix.php-version }}, Laravel ${{ matrix.laravel }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -51,6 +51,7 @@ jobs:
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml
           flags: php${{ matrix.php-version }}-laravel${{ matrix.laravel }}
 
