@@ -6,8 +6,10 @@ namespace FeatureFlags\Evaluation;
 
 class BucketCalculator
 {
+    private const MAX_BUCKET = 10000;
+
     public static function calculate(string $seed): int
     {
-        return abs(crc32($seed)) % 100;
+        return hexdec(hash('murmur3a', $seed)) % self::MAX_BUCKET;
     }
 }

@@ -210,6 +210,6 @@ class OperatorEvaluator
             return false;
         }
 
-        return BucketCalculator::calculate($flagKey . ':' . $valueString) < $pct;
+        return BucketCalculator::calculate($flagKey . ':' . $valueString) < ($pct * 100);
     }
 }

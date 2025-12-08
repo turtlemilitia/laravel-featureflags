@@ -309,6 +309,6 @@ readonly class FlagEvaluator
 
     private function isInRollout(string $flagKey, string|int $contextId, int $percentage): bool
     {
-        return BucketCalculator::calculate($flagKey . $contextId) < $percentage;
+        return BucketCalculator::calculate($flagKey . $contextId) < ($percentage * 100);
     }
 }
