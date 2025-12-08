@@ -72,7 +72,7 @@ class BucketCalculatorTest extends TestCase
         $this->assertLessThan(
             $tolerance,
             $deviation,
-            "Distribution at {$targetPercentage}% deviated by {$deviation}%"
+            "Distribution at {$targetPercentage}% deviated by {$deviation}%",
         );
     }
 
@@ -111,7 +111,7 @@ class BucketCalculatorTest extends TestCase
         $this->assertLessThan(
             123.23,
             $chiSquare,
-            "Chi-square value {$chiSquare} exceeds critical value, distribution is not uniform"
+            "Chi-square value {$chiSquare} exceeds critical value, distribution is not uniform",
         );
     }
 }
