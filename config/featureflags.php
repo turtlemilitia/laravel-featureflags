@@ -234,9 +234,7 @@ return [
     'sync' => [
         'on_boot' => env('FEATUREFLAGS_SYNC_ON_BOOT', false),
 
-        'timeout' => 5, // HTTP timeout in seconds
-
-        'verify_ssl' => true,
+        'timeout' => 5,
 
         // Circuit breaker prevents hammering the API when it's down
         'circuit_breaker' => [

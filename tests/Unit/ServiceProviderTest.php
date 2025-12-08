@@ -145,9 +145,7 @@ class ServiceProviderTest extends TestCase
         config(['featureflags.api_url' => 'https://custom-api.test']);
         config(['featureflags.api_key' => 'custom-key']);
         config(['featureflags.sync.timeout' => 10]);
-        config(['featureflags.sync.verify_ssl' => false]);
 
-        // Create a fresh instance with new config
         $this->app->forgetInstance(ApiClient::class);
         $apiClient = $this->app->make(ApiClient::class);
 

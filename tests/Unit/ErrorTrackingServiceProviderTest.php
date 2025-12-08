@@ -4,17 +4,12 @@ namespace FeatureFlags\Tests\Unit;
 
 use Exception;
 use FeatureFlags\Cache\FlagCache;
-use FeatureFlags\Client\ApiClient;
 use FeatureFlags\Context\RequestContext;
-use FeatureFlags\ContextResolver;
-use FeatureFlags\Evaluation\OperatorEvaluator;
 use FeatureFlags\FeatureFlags;
-use FeatureFlags\FeatureFlagsConfig;
 use FeatureFlags\Integrations\ErrorTrackingServiceProvider;
-use FeatureFlags\Telemetry\ConversionCollector;
 use FeatureFlags\Telemetry\ErrorCollector;
 use FeatureFlags\Telemetry\FlagStateTracker;
-use FeatureFlags\Telemetry\TelemetryCollector;
+use FeatureFlags\Tests\CreatesFeatureFlags;
 use FeatureFlags\Tests\TestCase;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
@@ -25,6 +20,8 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class ErrorTrackingServiceProviderTest extends TestCase
 {
+    use CreatesFeatureFlags;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -45,7 +42,6 @@ class ErrorTrackingServiceProviderTest extends TestCase
         $provider = new ErrorTrackingServiceProvider($this->app);
         $provider->boot();
 
-        // The provider should not throw and should complete boot
         $this->assertTrue(true);
     }
 
@@ -68,18 +64,15 @@ class ErrorTrackingServiceProviderTest extends TestCase
         config(['featureflags.error_tracking.enabled' => true]);
         config(['featureflags.telemetry.enabled' => true]);
 
-        // Set up a flag state tracker with some evaluated flags
         $stateTracker = new FlagStateTracker();
-        $stateTracker->record('test-flag', true);
-        $stateTracker->record('another-flag', 'variant-a');
+        $stateTracker->record('test-flag', true, null);
+        $stateTracker->record('another-flag', 'variant-a', null);
 
         $mockErrorCollector = Mockery::mock(ErrorCollector::class);
-        $mockErrorCollector->shouldReceive('trackAutomatic')
-            ->twice(); // Once for each flag
+        $mockErrorCollector->shouldReceive('trackAutomatic')->twice();
 
         $this->registerFeatureFlagsWithMocks($stateTracker, $mockErrorCollector);
 
-        // Call trackErrorWithFlags via reflection
         $provider = new ErrorTrackingServiceProvider($this->app);
         $reflection = new \ReflectionClass($provider);
         $method = $reflection->getMethod('trackErrorWithFlags');
@@ -96,7 +89,6 @@ class ErrorTrackingServiceProviderTest extends TestCase
         config(['featureflags.error_tracking.enabled' => true]);
         config(['featureflags.telemetry.enabled' => true]);
 
-        // Empty state tracker - no flags evaluated
         $stateTracker = new FlagStateTracker();
 
         $mockErrorCollector = Mockery::mock(ErrorCollector::class);
@@ -197,7 +189,7 @@ class ErrorTrackingServiceProviderTest extends TestCase
         config(['featureflags.telemetry.enabled' => false]);
 
         $stateTracker = new FlagStateTracker();
-        $stateTracker->record('test-flag', true);
+        $stateTracker->record('test-flag', true, null);
 
         $mockErrorCollector = Mockery::mock(ErrorCollector::class);
         $mockErrorCollector->shouldNotReceive('trackAutomatic');
@@ -228,7 +220,6 @@ class ErrorTrackingServiceProviderTest extends TestCase
         $flags = ['flag-1' => true, 'flag-2' => 'variant-b'];
         $method->invoke($provider, $flags);
 
-        // Check Laravel Context has the flags
         if (class_exists(\Illuminate\Support\Facades\Context::class)) {
             $context = \Illuminate\Support\Facades\Context::all();
             $this->assertArrayHasKey('feature_flags', $context);
@@ -244,25 +235,18 @@ class ErrorTrackingServiceProviderTest extends TestCase
         $provider = new ErrorTrackingServiceProvider($this->app);
         $provider->register();
 
-        // Just ensure it doesn't throw
         $this->assertTrue(true);
     }
 
     private function registerFeatureFlagsWithMocks(FlagStateTracker $stateTracker, $mockErrorCollector): void
     {
-        $config = new FeatureFlagsConfig(
-            Mockery::mock(ApiClient::class),
-            Mockery::mock(FlagCache::class),
-            new ContextResolver(config('featureflags.context')),
-            Mockery::mock(TelemetryCollector::class),
-            Mockery::mock(ConversionCollector::class),
-            $mockErrorCollector,
-            $stateTracker,
-            new OperatorEvaluator(),
-            true,
-        );
+        $mockCache = Mockery::mock(FlagCache::class);
 
-        $featureFlags = new FeatureFlags($config);
+        $featureFlags = $this->createFeatureFlagsInstance(
+            cache: $mockCache,
+            errors: $mockErrorCollector,
+            stateTracker: $stateTracker,
+        );
 
         $this->app->instance(FeatureFlags::class, $featureFlags);
         $this->app->instance('featureflags', $featureFlags);

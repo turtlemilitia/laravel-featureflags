@@ -4,19 +4,15 @@ namespace FeatureFlags\Tests\Unit;
 
 use FeatureFlags\Cache\FlagCache;
 use FeatureFlags\Client\ApiClient;
-use FeatureFlags\ContextResolver;
-use FeatureFlags\Evaluation\OperatorEvaluator;
 use FeatureFlags\FeatureFlags;
-use FeatureFlags\FeatureFlagsConfig;
-use FeatureFlags\Telemetry\ConversionCollector;
-use FeatureFlags\Telemetry\ErrorCollector;
-use FeatureFlags\Telemetry\FlagStateTracker;
-use FeatureFlags\Telemetry\TelemetryCollector;
+use FeatureFlags\Tests\CreatesFeatureFlags;
 use FeatureFlags\Tests\TestCase;
 use Mockery;
 
 class SyncCommandTest extends TestCase
 {
+    use CreatesFeatureFlags;
+
     protected function tearDown(): void
     {
         Mockery::close();
@@ -46,7 +42,10 @@ class SyncCommandTest extends TestCase
             ['key' => 'flag-2', 'enabled' => false],
         ]);
 
-        $this->app->instance(FeatureFlags::class, $this->createFeatureFlags($mockApiClient, $mockCache));
+        $this->app->instance(FeatureFlags::class, $this->createFeatureFlagsInstance(
+            apiClient: $mockApiClient,
+            cache: $mockCache,
+        ));
 
         $this->artisan('featureflags:sync')
             ->expectsOutput('Syncing feature flags...')
@@ -79,7 +78,10 @@ class SyncCommandTest extends TestCase
             ['key' => 'flag-3', 'enabled' => true],
         ]);
 
-        $this->app->instance(FeatureFlags::class, $this->createFeatureFlags($mockApiClient, $mockCache));
+        $this->app->instance(FeatureFlags::class, $this->createFeatureFlagsInstance(
+            apiClient: $mockApiClient,
+            cache: $mockCache,
+        ));
 
         $this->artisan('featureflags:sync')
             ->expectsOutput('Synced 3 flag(s).')
@@ -109,7 +111,10 @@ class SyncCommandTest extends TestCase
             ['key' => 'dark-mode', 'enabled' => false],
         ]);
 
-        $this->app->instance(FeatureFlags::class, $this->createFeatureFlags($mockApiClient, $mockCache));
+        $this->app->instance(FeatureFlags::class, $this->createFeatureFlagsInstance(
+            apiClient: $mockApiClient,
+            cache: $mockCache,
+        ));
 
         $this->artisan('featureflags:sync', ['-v' => true])
             ->expectsOutput('  - new-checkout (enabled)')
@@ -134,7 +139,10 @@ class SyncCommandTest extends TestCase
         $mockCache->shouldReceive('has')->andReturn(true);
         $mockCache->shouldReceive('all')->andReturn([]);
 
-        $this->app->instance(FeatureFlags::class, $this->createFeatureFlags($mockApiClient, $mockCache));
+        $this->app->instance(FeatureFlags::class, $this->createFeatureFlagsInstance(
+            apiClient: $mockApiClient,
+            cache: $mockCache,
+        ));
 
         $this->artisan('featureflags:sync')
             ->expectsOutput('Synced 0 flag(s).')
@@ -158,39 +166,12 @@ class SyncCommandTest extends TestCase
         $mockCache->shouldReceive('has')->andReturn(true);
         $mockCache->shouldReceive('all')->andReturn([['key' => 'test', 'enabled' => true]]);
 
-        $this->app->instance(FeatureFlags::class, $this->createFeatureFlags($mockApiClient, $mockCache));
+        $this->app->instance(FeatureFlags::class, $this->createFeatureFlagsInstance(
+            apiClient: $mockApiClient,
+            cache: $mockCache,
+        ));
 
         $this->artisan('featureflags:sync')
             ->assertExitCode(0);
-    }
-
-    /**
-     * @param \Mockery\MockInterface&ApiClient $mockApiClient
-     * @param \Mockery\MockInterface&FlagCache $mockCache
-     */
-    private function createFeatureFlags($mockApiClient, $mockCache): FeatureFlags
-    {
-        $mockContextResolver = Mockery::mock(ContextResolver::class);
-        $mockContextResolver->shouldReceive('resolve')->andReturn(null);
-
-        $mockTelemetry = Mockery::mock(TelemetryCollector::class);
-        $mockTelemetry->shouldReceive('record');
-
-        $mockStateTracker = Mockery::mock(FlagStateTracker::class);
-        $mockStateTracker->shouldReceive('record');
-
-        $config = new FeatureFlagsConfig(
-            $mockApiClient,
-            $mockCache,
-            $mockContextResolver,
-            $mockTelemetry,
-            Mockery::mock(ConversionCollector::class),
-            Mockery::mock(ErrorCollector::class),
-            $mockStateTracker,
-            new OperatorEvaluator(),
-            true,
-        );
-
-        return new FeatureFlags($config);
     }
 }

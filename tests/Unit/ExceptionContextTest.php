@@ -3,24 +3,20 @@
 namespace FeatureFlags\Tests\Unit;
 
 use FeatureFlags\Cache\FlagCache;
-use FeatureFlags\Client\ApiClient;
 use FeatureFlags\Context\RequestContext;
-use FeatureFlags\ContextResolver;
 use FeatureFlags\Contracts\FeatureFlagsInterface;
-use FeatureFlags\Evaluation\OperatorEvaluator;
 use FeatureFlags\FeatureFlags;
-use FeatureFlags\FeatureFlagsConfig;
 use FeatureFlags\Integrations\ExceptionContext;
-use FeatureFlags\Telemetry\ConversionCollector;
-use FeatureFlags\Telemetry\ErrorCollector;
 use FeatureFlags\Telemetry\FlagStateTracker;
-use FeatureFlags\Telemetry\TelemetryCollector;
+use FeatureFlags\Tests\CreatesFeatureFlags;
 use FeatureFlags\Tests\TestCase;
 use Illuminate\Support\Facades\Context;
 use Mockery;
 
 class ExceptionContextTest extends TestCase
 {
+    use CreatesFeatureFlags;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -32,7 +28,6 @@ class ExceptionContextTest extends TestCase
         Mockery::close();
         RequestContext::reset();
 
-        // Clear Laravel Context if available
         if (class_exists(Context::class)) {
             Context::flush();
         }
@@ -42,10 +37,9 @@ class ExceptionContextTest extends TestCase
 
     public function test_add_flags_to_context_adds_flags_when_available(): void
     {
-        // Set up a state tracker with some evaluated flags
         $stateTracker = new FlagStateTracker();
-        $stateTracker->record('test-flag', true);
-        $stateTracker->record('variant-flag', 'variant-a');
+        $stateTracker->record('test-flag', true, null);
+        $stateTracker->record('variant-flag', 'variant-a', null);
 
         $this->registerFeatureFlagsWithMocks($stateTracker);
 
@@ -63,7 +57,6 @@ class ExceptionContextTest extends TestCase
 
     public function test_add_flags_to_context_does_nothing_when_no_flags(): void
     {
-        // Empty state tracker
         $stateTracker = new FlagStateTracker();
         $this->registerFeatureFlagsWithMocks($stateTracker);
 
@@ -82,8 +75,8 @@ class ExceptionContextTest extends TestCase
         RequestContext::initialize();
 
         $stateTracker = new FlagStateTracker();
-        $stateTracker->record('checkout-v2', true);
-        $stateTracker->record('new-pricing', 'control');
+        $stateTracker->record('checkout-v2', true, null);
+        $stateTracker->record('new-pricing', 'control', null);
 
         $this->registerFeatureFlagsWithMocks($stateTracker);
 
@@ -114,7 +107,7 @@ class ExceptionContextTest extends TestCase
         RequestContext::initialize();
 
         $stateTracker = new FlagStateTracker();
-        $stateTracker->record('my-flag', true);
+        $stateTracker->record('my-flag', true, null);
         $this->registerFeatureFlagsWithMocks($stateTracker);
 
         $flags = ExceptionContext::getFlags();
@@ -128,7 +121,7 @@ class ExceptionContextTest extends TestCase
         RequestContext::reset();
 
         $stateTracker = new FlagStateTracker();
-        $stateTracker->record('my-flag', true);
+        $stateTracker->record('my-flag', true, null);
         $this->registerFeatureFlagsWithMocks($stateTracker);
 
         $flags = ExceptionContext::getFlags();
@@ -142,10 +135,9 @@ class ExceptionContextTest extends TestCase
         RequestContext::initialize();
 
         $stateTracker = new FlagStateTracker();
-        $stateTracker->record('payment-flow', 'new');
+        $stateTracker->record('payment-flow', 'new', null);
         $this->registerFeatureFlagsWithMocks($stateTracker);
 
-        // Simulate usage in exception context() method
         $exceptionContext = array_merge(
             ['payment_id' => 'pay_123'],
             ExceptionContext::getFlags(),
@@ -159,7 +151,6 @@ class ExceptionContextTest extends TestCase
 
     public function test_add_flags_catches_exceptions_silently(): void
     {
-        // Register a broken FeatureFlags instance that throws
         $mockFeatureFlags = Mockery::mock(FeatureFlagsInterface::class);
         $mockFeatureFlags->shouldReceive('getEvaluatedFlags')
             ->andThrow(new \RuntimeException('Something went wrong'));
@@ -167,7 +158,6 @@ class ExceptionContextTest extends TestCase
         $this->app->instance(FeatureFlags::class, $mockFeatureFlags);
         $this->app->instance('featureflags', $mockFeatureFlags);
 
-        // Should not throw
         ExceptionContext::addFlagsToContext();
 
         $this->assertTrue(true);
@@ -175,7 +165,6 @@ class ExceptionContextTest extends TestCase
 
     public function test_get_flags_catches_exceptions_silently(): void
     {
-        // Register a broken FeatureFlags instance that throws
         $mockFeatureFlags = Mockery::mock(FeatureFlagsInterface::class);
         $mockFeatureFlags->shouldReceive('getErrorContext')
             ->andThrow(new \RuntimeException('Something went wrong'));
@@ -183,7 +172,6 @@ class ExceptionContextTest extends TestCase
         $this->app->instance(FeatureFlags::class, $mockFeatureFlags);
         $this->app->instance('featureflags', $mockFeatureFlags);
 
-        // Should not throw, returns empty array
         $flags = ExceptionContext::getFlags();
 
         $this->assertEquals([], $flags);
@@ -191,19 +179,12 @@ class ExceptionContextTest extends TestCase
 
     private function registerFeatureFlagsWithMocks(FlagStateTracker $stateTracker): void
     {
-        $config = new FeatureFlagsConfig(
-            Mockery::mock(ApiClient::class),
-            Mockery::mock(FlagCache::class),
-            new ContextResolver(config('featureflags.context')),
-            Mockery::mock(TelemetryCollector::class),
-            Mockery::mock(ConversionCollector::class),
-            Mockery::mock(ErrorCollector::class),
-            $stateTracker,
-            new OperatorEvaluator(),
-            true,
-        );
+        $mockCache = Mockery::mock(FlagCache::class);
 
-        $featureFlags = new FeatureFlags($config);
+        $featureFlags = $this->createFeatureFlagsInstance(
+            cache: $mockCache,
+            stateTracker: $stateTracker,
+        );
 
         $this->app->instance(FeatureFlags::class, $featureFlags);
         $this->app->instance('featureflags', $featureFlags);

@@ -3,21 +3,17 @@
 namespace FeatureFlags\Tests\Unit;
 
 use FeatureFlags\Cache\FlagCache;
-use FeatureFlags\Client\ApiClient;
-use FeatureFlags\ContextResolver;
-use FeatureFlags\Evaluation\OperatorEvaluator;
 use FeatureFlags\Facades\Feature;
 use FeatureFlags\FeatureFlags;
-use FeatureFlags\FeatureFlagsConfig;
-use FeatureFlags\Telemetry\ConversionCollector;
-use FeatureFlags\Telemetry\ErrorCollector;
 use FeatureFlags\Telemetry\FlagStateTracker;
-use FeatureFlags\Telemetry\TelemetryCollector;
+use FeatureFlags\Tests\CreatesFeatureFlags;
 use FeatureFlags\Tests\TestCase;
 use Mockery;
 
 class FeatureFacadeTest extends TestCase
 {
+    use CreatesFeatureFlags;
+
     protected function tearDown(): void
     {
         Mockery::close();
@@ -110,22 +106,7 @@ class FeatureFacadeTest extends TestCase
 
     private function registerFeatureFlagsWithMock($mockCache): void
     {
-        $mockTelemetry = Mockery::mock(TelemetryCollector::class);
-        $mockTelemetry->shouldReceive('record');
-
-        $config = new FeatureFlagsConfig(
-            Mockery::mock(ApiClient::class),
-            $mockCache,
-            new ContextResolver(config('featureflags.context')),
-            $mockTelemetry,
-            Mockery::mock(ConversionCollector::class),
-            Mockery::mock(ErrorCollector::class),
-            new FlagStateTracker(),
-            new OperatorEvaluator(),
-            true,
-        );
-
-        $featureFlags = new FeatureFlags($config);
+        $featureFlags = $this->createFeatureFlagsInstance(cache: $mockCache);
 
         $this->app->instance(FeatureFlags::class, $featureFlags);
         $this->app->instance('featureflags', $featureFlags);

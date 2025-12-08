@@ -4,12 +4,21 @@ declare(strict_types=1);
 
 namespace FeatureFlags\Telemetry;
 
+use FeatureFlags\Client\ApiClient;
+use FeatureFlags\Config\ConfigHelper;
 use FeatureFlags\Context\RequestContext;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class ErrorCollector extends AbstractCollector
 {
+    public function __construct(
+        ApiClient $apiClient,
+        private readonly ?FlagStateTracker $stateTracker = null,
+    ) {
+        parent::__construct($apiClient);
+    }
+
     /** @param array<string, mixed> $metadata */
     public function track(string $flagKey, Throwable $exception, array $metadata = []): void
     {
@@ -46,9 +55,7 @@ class ErrorCollector extends AbstractCollector
 
     protected function getBatchSize(): int
     {
-        $size = config('featureflags.telemetry.error_batch_size', 10);
-
-        return is_int($size) ? $size : 10;
+        return ConfigHelper::int('featureflags.telemetry.error_batch_size', 10);
     }
 
     /**
@@ -78,8 +85,12 @@ class ErrorCollector extends AbstractCollector
     /** @return bool|int|float|string|array<string, mixed>|null */
     private function getTrackedFlagValue(string $flagKey): bool|int|float|string|array|null
     {
+        if ($this->stateTracker === null) {
+            return null;
+        }
+
         try {
-            return app(FlagStateTracker::class)->getValue($flagKey);
+            return $this->stateTracker->getValue($flagKey);
         } catch (\Throwable $e) {
             Log::debug('Feature flags: Could not retrieve tracked flag value', [
                 'flag_key' => $flagKey,

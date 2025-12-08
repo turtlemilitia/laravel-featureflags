@@ -6,7 +6,10 @@ namespace FeatureFlags;
 
 use FeatureFlags\Cache\FlagCache;
 use FeatureFlags\Client\ApiClient;
+use FeatureFlags\Config\ConfigHelper;
 use FeatureFlags\Contracts\FeatureFlagsInterface;
+use FeatureFlags\Evaluation\ContextNormalizer;
+use FeatureFlags\Evaluation\FlagEvaluator;
 use FeatureFlags\Evaluation\OperatorEvaluator;
 use FeatureFlags\Http\Controllers\WebhookController;
 use FeatureFlags\Http\Middleware\FlushTelemetry;
@@ -17,9 +20,6 @@ use FeatureFlags\Telemetry\TelemetryCollector;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Contracts\Http\Kernel;
-use Illuminate\Queue\Events\JobFailed;
-use Illuminate\Queue\Events\JobProcessed;
-use Illuminate\Queue\Events\Looping;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
@@ -32,32 +32,20 @@ class FeatureFlagsServiceProvider extends ServiceProvider
     {
         $this->mergeConfigFrom(__DIR__ . '/../config/featureflags.php', 'featureflags');
 
-        $this->app->singleton(ApiClient::class, function (): ApiClient {
-            $url = config('featureflags.api_url', 'https://api.turtlemilitia.com/v1');
-            $key = config('featureflags.api_key');
-            $timeout = config('featureflags.sync.timeout', 5);
-            $verifySsl = config('featureflags.sync.verify_ssl', true);
-
-            return new ApiClient(
-                is_string($url) ? $url : 'https://api.turtlemilitia.com/v1',
-                is_string($key) ? $key : null,
-                is_int($timeout) ? $timeout : 5,
-                is_bool($verifySsl) ? $verifySsl : true,
-            );
-        });
+        $this->app->singleton(ApiClient::class, fn(): ApiClient => new ApiClient(
+            ConfigHelper::string('featureflags.api_url', 'https://api.turtlemilitia.com/v1'),
+            ConfigHelper::stringOrNull('featureflags.api_key'),
+            ConfigHelper::int('featureflags.sync.timeout', 5),
+        ));
 
         $this->app->singleton(FlagCache::class, function (Application $app): FlagCache {
-            $store = config('featureflags.cache.store');
-            $prefix = config('featureflags.cache.prefix', 'featureflags');
-            $ttl = config('featureflags.cache.ttl', 300);
-
             /** @var CacheFactory $cacheFactory */
             $cacheFactory = $app->make(CacheFactory::class);
 
             return new FlagCache(
-                $cacheFactory->store(is_string($store) ? $store : null),
-                is_string($prefix) ? $prefix : 'featureflags',
-                is_int($ttl) ? $ttl : 300,
+                $cacheFactory->store(ConfigHelper::stringOrNull('featureflags.cache.store')),
+                ConfigHelper::string('featureflags.cache.prefix', 'featureflags'),
+                ConfigHelper::int('featureflags.cache.ttl', 300),
             );
         });
 
@@ -71,32 +59,44 @@ class FeatureFlagsServiceProvider extends ServiceProvider
             return new ConversionCollector($app->make(ApiClient::class));
         });
 
-        $this->app->singleton(ErrorCollector::class, function (Application $app): ErrorCollector {
-            return new ErrorCollector($app->make(ApiClient::class));
-        });
-
         $this->app->singleton(FlagStateTracker::class, fn(): FlagStateTracker => new FlagStateTracker());
 
-        $this->app->singleton(OperatorEvaluator::class, fn(): OperatorEvaluator => new OperatorEvaluator());
-
-        $this->app->singleton(FeatureFlagsConfig::class, function (Application $app): FeatureFlagsConfig {
-            $cacheEnabled = config('featureflags.cache.enabled', true);
-
-            return new FeatureFlagsConfig(
+        $this->app->singleton(ErrorCollector::class, function (Application $app): ErrorCollector {
+            return new ErrorCollector(
                 $app->make(ApiClient::class),
-                $app->make(FlagCache::class),
-                $app->make(ContextResolver::class),
-                $app->make(TelemetryCollector::class),
-                $app->make(ConversionCollector::class),
-                $app->make(ErrorCollector::class),
                 $app->make(FlagStateTracker::class),
-                $app->make(OperatorEvaluator::class),
-                (bool) $cacheEnabled,
             );
         });
 
+        $this->app->singleton(OperatorEvaluator::class, fn(): OperatorEvaluator => new OperatorEvaluator());
+
+        $this->app->singleton(ContextNormalizer::class, function (Application $app): ContextNormalizer {
+            return new ContextNormalizer($app->make(ContextResolver::class));
+        });
+
+        $this->app->singleton(FlagEvaluator::class, function (Application $app): FlagEvaluator {
+            return new FlagEvaluator(
+                $app->make(FlagCache::class),
+                $app->make(OperatorEvaluator::class),
+            );
+        });
+
+        $this->app->singleton(FlagService::class, fn(Application $app): FlagService => new FlagService(
+            $app->make(FlagCache::class),
+            $app->make(ApiClient::class),
+            $app->make(FlagEvaluator::class),
+            $app->make(ContextNormalizer::class),
+            $app->make(TelemetryCollector::class),
+            $app->make(FlagStateTracker::class),
+            ConfigHelper::bool('featureflags.cache.enabled', true),
+        ));
+
         $this->app->singleton(FeatureFlags::class, function (Application $app): FeatureFlags {
-            return new FeatureFlags($app->make(FeatureFlagsConfig::class));
+            return new FeatureFlags(
+                $app->make(FlagService::class),
+                $app->make(ConversionCollector::class),
+                $app->make(ErrorCollector::class),
+            );
         });
 
         $this->app->bind(FeatureFlagsInterface::class, FeatureFlags::class);
@@ -160,9 +160,7 @@ class FeatureFlagsServiceProvider extends ServiceProvider
             );
         }
 
-        $path = config('featureflags.webhook.path', '/webhooks/feature-flags');
-
-        Route::post(is_string($path) ? $path : '/webhooks/feature-flags', WebhookController::class)
+        Route::post(ConfigHelper::string('featureflags.webhook.path', '/webhooks/feature-flags'), WebhookController::class)
             ->middleware('api')
             ->name('featureflags.webhook');
     }
@@ -181,11 +179,11 @@ class FeatureFlagsServiceProvider extends ServiceProvider
     private function registerQueueListeners(): void
     {
         try {
-            Queue::after(function (JobProcessed $event): void {
+            Queue::after(function (): void {
                 $this->flushTelemetryAndReset();
             });
 
-            Queue::failing(function (JobFailed $event): void {
+            Queue::failing(function (): void {
                 $this->flushTelemetryAndReset();
             });
 

@@ -40,7 +40,6 @@ class CircuitBreakerTest extends TestCase
             'https://api.test.com',
             'test-key',
             5,
-            true,
             $guzzleClient,
         );
 
@@ -66,7 +65,7 @@ class CircuitBreakerTest extends TestCase
         Cache::put('featureflags:circuit_breaker', true, 30);
 
         $mock = new MockHandler([
-            new Response(200, [], json_encode(['flags' => [], 'cache_ttl' => 300])),
+            new Response(200, [], json_encode(['flags' => [], 'cache_ttl' => 300]) ?: '{}'),
         ]);
 
         $handlerStack = HandlerStack::create($mock);
@@ -76,7 +75,6 @@ class CircuitBreakerTest extends TestCase
             'https://api.test.com',
             'test-key',
             5,
-            true,
             $guzzleClient,
         );
 
@@ -95,7 +93,7 @@ class CircuitBreakerTest extends TestCase
         Cache::put('featureflags:circuit_breaker_failures', 2, 60);
 
         $mock = new MockHandler([
-            new Response(200, [], json_encode(['flags' => [], 'cache_ttl' => 300])),
+            new Response(200, [], json_encode(['flags' => [], 'cache_ttl' => 300]) ?: '{}'),
         ]);
 
         $handlerStack = HandlerStack::create($mock);
@@ -105,7 +103,6 @@ class CircuitBreakerTest extends TestCase
             'https://api.test.com',
             'test-key',
             5,
-            true,
             $guzzleClient,
         );
 
@@ -123,7 +120,7 @@ class CircuitBreakerTest extends TestCase
 
         $mock = new MockHandler([
             new ConnectException('Connection failed', new Request('GET', 'api/flags')),
-            new Response(200, [], json_encode(['flags' => [], 'cache_ttl' => 300])),
+            new Response(200, [], json_encode(['flags' => [], 'cache_ttl' => 300]) ?: '{}'),
         ]);
 
         $handlerStack = HandlerStack::create($mock);
@@ -133,7 +130,6 @@ class CircuitBreakerTest extends TestCase
             'https://api.test.com',
             'test-key',
             5,
-            true,
             $guzzleClient,
         );
 
@@ -171,7 +167,6 @@ class CircuitBreakerTest extends TestCase
             'https://api.test.com',
             'test-key',
             5,
-            true,
             $guzzleClient,
         );
 
@@ -199,7 +194,6 @@ class CircuitBreakerTest extends TestCase
             'https://api.test.com',
             'test-key',
             5,
-            true,
             $guzzleClient,
         );
 
@@ -227,7 +221,6 @@ class CircuitBreakerTest extends TestCase
             'https://api.test.com',
             'test-key',
             5,
-            true,
             $guzzleClient,
         );
 
@@ -255,7 +248,6 @@ class CircuitBreakerTest extends TestCase
             'https://api.test.com',
             'test-key',
             5,
-            true,
             $guzzleClient,
         );
 
@@ -289,20 +281,15 @@ class CircuitBreakerTest extends TestCase
  */
 class ApiClientWithMockableClient extends ApiClient
 {
-    private Client $mockClient;
-
     public function __construct(
         string $apiUrl,
         ?string $apiKey,
         int $timeout = 5,
-        bool $verifySsl = true,
         ?Client $mockClient = null,
     ) {
-        parent::__construct($apiUrl, $apiKey, $timeout, $verifySsl);
+        parent::__construct($apiUrl, $apiKey, $timeout);
 
         if ($mockClient !== null) {
-            $this->mockClient = $mockClient;
-            // Use reflection to replace the private client
             $reflection = new \ReflectionClass(ApiClient::class);
             $property = $reflection->getProperty('client');
             $property->setAccessible(true);

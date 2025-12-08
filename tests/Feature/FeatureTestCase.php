@@ -7,7 +7,7 @@ namespace FeatureFlags\Tests\Feature;
 use FeatureFlags\Cache\FlagCache;
 use FeatureFlags\Client\ApiClient;
 use FeatureFlags\FeatureFlags;
-use FeatureFlags\FeatureFlagsConfig;
+use FeatureFlags\FlagService;
 use FeatureFlags\Tests\TestCase;
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
@@ -77,7 +77,7 @@ abstract class FeatureTestCase extends TestCase
 
         // Forget any existing instances that depend on ApiClient
         $this->app->forgetInstance(ApiClient::class);
-        $this->app->forgetInstance(FeatureFlagsConfig::class);
+        $this->app->forgetInstance(FlagService::class);
         $this->app->forgetInstance(FeatureFlags::class);
 
         $this->app->singleton(ApiClient::class, function () use ($client) {

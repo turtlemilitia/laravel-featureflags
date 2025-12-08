@@ -4,6 +4,6 @@ declare(strict_types=1);
 
 namespace FeatureFlags\Exceptions;
 
-use Exception;
+use RuntimeException;
 
-class ApiException extends Exception {}
+class ApiException extends RuntimeException {}

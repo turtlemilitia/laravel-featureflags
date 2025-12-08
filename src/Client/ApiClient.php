@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace FeatureFlags\Client;
 
+use FeatureFlags\Config\ConfigHelper;
 use FeatureFlags\Exceptions\ApiException;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\GuzzleException;
@@ -23,26 +24,19 @@ class ApiClient
         private readonly string $apiUrl,
         private readonly ?string $apiKey,
         private readonly int $timeout = 5,
-        private readonly bool $verifySsl = true,
     ) {
         $this->client = new Client([
             'base_uri' => rtrim($this->apiUrl, '/') . '/',
             'timeout' => $this->timeout,
-            'verify' => $this->verifySsl,
             'headers' => [
                 'Accept' => 'application/json',
                 'Authorization' => 'Bearer ' . ($this->apiKey ?? ''),
             ],
         ]);
 
-        $enabled = config('featureflags.sync.circuit_breaker.enabled', true);
-        $this->circuitBreakerEnabled = is_bool($enabled) ? $enabled : true;
-
-        $threshold = config('featureflags.sync.circuit_breaker.failure_threshold', 5);
-        $this->circuitBreakerThreshold = is_int($threshold) ? $threshold : 5;
-
-        $cooldown = config('featureflags.sync.circuit_breaker.cooldown_seconds', 30);
-        $this->circuitBreakerCooldown = is_int($cooldown) ? $cooldown : 30;
+        $this->circuitBreakerEnabled = ConfigHelper::bool('featureflags.sync.circuit_breaker.enabled', true);
+        $this->circuitBreakerThreshold = ConfigHelper::int('featureflags.sync.circuit_breaker.failure_threshold', 5);
+        $this->circuitBreakerCooldown = ConfigHelper::int('featureflags.sync.circuit_breaker.cooldown_seconds', 30);
     }
 
     /**
@@ -90,24 +84,7 @@ class ApiClient
      */
     public function sendTelemetry(array $events): void
     {
-        if (empty($this->apiKey) || empty($events)) {
-            return;
-        }
-
-        // Skip telemetry if circuit is open (non-critical)
-        if ($this->isCircuitOpen()) {
-            return;
-        }
-
-        try {
-            $this->client->post('api/telemetry', [
-                'json' => ['events' => $events],
-            ]);
-            $this->recordSuccess();
-        } catch (GuzzleException $e) {
-            $this->recordFailure();
-            throw new ApiException('Failed to send telemetry: ' . $e->getMessage(), 0, $e);
-        }
+        $this->sendToEndpoint('api/telemetry', ['events' => $events], 'telemetry');
     }
 
     /**
@@ -116,24 +93,7 @@ class ApiClient
      */
     public function sendConversions(array $events): void
     {
-        if (empty($this->apiKey) || empty($events)) {
-            return;
-        }
-
-        // Skip conversions if circuit is open (non-critical)
-        if ($this->isCircuitOpen()) {
-            return;
-        }
-
-        try {
-            $this->client->post('api/conversions', [
-                'json' => ['events' => $events],
-            ]);
-            $this->recordSuccess();
-        } catch (GuzzleException $e) {
-            $this->recordFailure();
-            throw new ApiException('Failed to send conversions: ' . $e->getMessage(), 0, $e);
-        }
+        $this->sendToEndpoint('api/conversions', ['events' => $events], 'conversions');
     }
 
     /**
@@ -142,23 +102,30 @@ class ApiClient
      */
     public function sendErrors(array $errors): void
     {
-        if (empty($this->apiKey) || empty($errors)) {
+        $this->sendToEndpoint('api/errors', ['errors' => $errors], 'errors');
+    }
+
+    /**
+     * @param array<string, array<int, array<string, mixed>>> $payload
+     * @throws ApiException
+     */
+    private function sendToEndpoint(string $endpoint, array $payload, string $type): void
+    {
+        $data = reset($payload);
+        if (empty($this->apiKey) || empty($data)) {
             return;
         }
 
-        // Skip errors if circuit is open (non-critical)
         if ($this->isCircuitOpen()) {
             return;
         }
 
         try {
-            $this->client->post('api/errors', [
-                'json' => ['errors' => $errors],
-            ]);
+            $this->client->post($endpoint, ['json' => $payload]);
             $this->recordSuccess();
         } catch (GuzzleException $e) {
             $this->recordFailure();
-            throw new ApiException('Failed to send errors: ' . $e->getMessage(), 0, $e);
+            throw new ApiException("Failed to send {$type}: " . $e->getMessage(), 0, $e);
         }
     }
 

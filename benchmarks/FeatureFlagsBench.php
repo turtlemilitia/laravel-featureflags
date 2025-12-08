@@ -8,13 +8,11 @@ use FeatureFlags\Cache\FlagCache;
 use FeatureFlags\Client\ApiClient;
 use FeatureFlags\Context;
 use FeatureFlags\ContextResolver;
-use FeatureFlags\Evaluation\OperatorEvaluator;
 use FeatureFlags\FeatureFlags;
-use FeatureFlags\FeatureFlagsConfig;
 use FeatureFlags\Telemetry\ConversionCollector;
 use FeatureFlags\Telemetry\ErrorCollector;
-use FeatureFlags\Telemetry\FlagStateTracker;
 use FeatureFlags\Telemetry\TelemetryCollector;
+use FeatureFlags\Tests\CreatesFeatureFlags;
 use Illuminate\Cache\ArrayStore;
 use Illuminate\Cache\FileStore;
 use Illuminate\Cache\Repository;
@@ -28,6 +26,7 @@ use PhpBench\Attributes as Bench;
 #[Bench\BeforeMethods('setUp')]
 class FeatureFlagsBench
 {
+    use CreatesFeatureFlags;
     private FeatureFlags $featureFlags;
     private FeatureFlags $featureFlagsWithTelemetry;
     private FeatureFlags $featureFlagsWithFileCache;
@@ -54,68 +53,29 @@ class FeatureFlagsBench
         $this->mockApiResponse = $this->buildMockApiResponse();
         $this->seedFlags();
 
-        $config = new FeatureFlagsConfig(
-            $this->createMockApiClient(),
+        $this->featureFlags = $this->createFeatureFlags($this->cache);
+
+        $this->featureFlagsWithTelemetry = $this->createFeatureFlags(
             $this->cache,
-            new ContextResolver(['auto_resolve' => false, 'user_traits' => []]),
-            $this->createMockTelemetry(),
-            $this->createMockConversions(),
-            $this->createMockErrors(),
-            new FlagStateTracker(),
-            new OperatorEvaluator(),
-            true,
+            telemetry: $this->createEnabledTelemetry(),
         );
-
-        $this->featureFlags = new FeatureFlags($config);
-
-        $configWithTelemetry = new FeatureFlagsConfig(
-            $this->createMockApiClient(),
-            $this->cache,
-            new ContextResolver(['auto_resolve' => false, 'user_traits' => []]),
-            $this->createEnabledTelemetry(),
-            $this->createMockConversions(),
-            $this->createMockErrors(),
-            new FlagStateTracker(),
-            new OperatorEvaluator(),
-            true,
-        );
-
-        $this->featureFlagsWithTelemetry = new FeatureFlags($configWithTelemetry);
 
         $this->seedFileCache();
-        $configWithFileCache = new FeatureFlagsConfig(
-            $this->createMockApiClient(),
-            $this->fileCache,
-            new ContextResolver(['auto_resolve' => false, 'user_traits' => []]),
-            $this->createMockTelemetry(),
-            $this->createMockConversions(),
-            $this->createMockErrors(),
-            new FlagStateTracker(),
-            new OperatorEvaluator(),
-            true,
-        );
-        $this->featureFlagsWithFileCache = new FeatureFlags($configWithFileCache);
+        $this->featureFlagsWithFileCache = $this->createFeatureFlags($this->fileCache);
 
         $this->setupMockAuth();
-        $configWithAutoContext = new FeatureFlagsConfig(
-            $this->createMockApiClient(),
+        $autoContextResolver = new ContextResolver([
+            'auto_resolve' => true,
+            'user_traits' => [
+                'id' => 'id',
+                'email' => 'email',
+                'plan' => 'plan',
+            ],
+        ]);
+        $this->featureFlagsWithAutoContext = $this->createFeatureFlags(
             $this->cache,
-            new ContextResolver([
-                'auto_resolve' => true,
-                'user_traits' => [
-                    'id' => 'id',
-                    'email' => 'email',
-                    'plan' => 'plan',
-                ],
-            ]),
-            $this->createMockTelemetry(),
-            $this->createMockConversions(),
-            $this->createMockErrors(),
-            new FlagStateTracker(),
-            new OperatorEvaluator(),
-            true,
+            contextResolver: $autoContextResolver,
         );
-        $this->featureFlagsWithAutoContext = new FeatureFlags($configWithAutoContext);
 
         $this->context = new Context('user-123', [
             'plan' => 'pro',
@@ -623,9 +583,6 @@ class FeatureFlagsBench
     // REAL-WORLD SCENARIO BENCHMARKS WITH ASSERTIONS
     // =========================================================================
 
-    /**
-     * Simulates a typical request checking 5 different flags.
-     */
     #[Bench\Revs(5000)]
     #[Bench\Iterations(5)]
     #[Bench\Assert('mode(variant.time.avg) < 100 microseconds')]
@@ -638,9 +595,6 @@ class FeatureFlagsBench
         $this->featureFlags->active('segment-flag', $this->context);
     }
 
-    /**
-     * Simulates a heavy request checking 10 flags with various complexity.
-     */
     #[Bench\Revs(2000)]
     #[Bench\Iterations(5)]
     #[Bench\Assert('mode(variant.time.avg) < 200 microseconds')]
@@ -658,9 +612,6 @@ class FeatureFlagsBench
         $this->featureFlags->value('dependent-flag', $this->context);
     }
 
-    /**
-     * Same as benchSimpleBooleanFlagWithContext but with telemetry recording enabled.
-     */
     #[Bench\Revs(10000)]
     #[Bench\Iterations(5)]
     public function benchWithTelemetrySimpleFlag(): void
@@ -668,9 +619,6 @@ class FeatureFlagsBench
         $this->featureFlagsWithTelemetry->active('simple-boolean', $this->context);
     }
 
-    /**
-     * Typical request with telemetry enabled - measures real-world overhead.
-     */
     #[Bench\Revs(5000)]
     #[Bench\Iterations(5)]
     public function benchWithTelemetryFiveFlags(): void
@@ -686,9 +634,6 @@ class FeatureFlagsBench
     // FILE CACHE BENCHMARKS - Simulates disk I/O overhead
     // =========================================================================
 
-    /**
-     * Simple flag with file-based cache (disk I/O).
-     */
     #[Bench\Revs(1000)]
     #[Bench\Iterations(5)]
     public function benchFileCacheSimpleFlag(): void
@@ -696,9 +641,6 @@ class FeatureFlagsBench
         $this->featureFlagsWithFileCache->active('simple-boolean', $this->context);
     }
 
-    /**
-     * Five flags with file-based cache.
-     */
     #[Bench\Revs(500)]
     #[Bench\Iterations(5)]
     public function benchFileCacheFiveFlags(): void
@@ -714,9 +656,6 @@ class FeatureFlagsBench
     // AUTO-CONTEXT RESOLUTION BENCHMARKS - Auth::user() overhead
     // =========================================================================
 
-    /**
-     * Flag check with auto-resolved context from Auth::user().
-     */
     #[Bench\Revs(10000)]
     #[Bench\Iterations(5)]
     public function benchAutoContextResolution(): void
@@ -724,9 +663,6 @@ class FeatureFlagsBench
         $this->featureFlagsWithAutoContext->active('simple-boolean');
     }
 
-    /**
-     * Five flags with auto-resolved context.
-     */
     #[Bench\Revs(5000)]
     #[Bench\Iterations(5)]
     public function benchAutoContextFiveFlags(): void
@@ -742,10 +678,6 @@ class FeatureFlagsBench
     // SYNC OPERATION BENCHMARKS - API response parsing & caching
     // =========================================================================
 
-    /**
-     * Sync flags from API (mocked) - measures parsing and caching overhead.
-     * This is what happens on first request or cache miss.
-     */
     #[Bench\Revs(500)]
     #[Bench\Iterations(5)]
     public function benchSyncFromApi(): void
@@ -756,25 +688,10 @@ class FeatureFlagsBench
             300,
         );
 
-        $config = new FeatureFlagsConfig(
-            $this->createSyncApiClient(),
-            $tempCache,
-            new ContextResolver(['auto_resolve' => false, 'user_traits' => []]),
-            $this->createMockTelemetry(),
-            $this->createMockConversions(),
-            $this->createMockErrors(),
-            new FlagStateTracker(),
-            new OperatorEvaluator(),
-            true,
-        );
-
-        $ff = new FeatureFlags($config);
+        $ff = $this->createFeatureFlags($tempCache, apiClient: $this->createSyncApiClient());
         $ff->sync();
     }
 
-    /**
-     * Cold start: sync + evaluate (simulates first request).
-     */
     #[Bench\Revs(500)]
     #[Bench\Iterations(5)]
     public function benchColdStartSyncAndEvaluate(): void
@@ -785,19 +702,7 @@ class FeatureFlagsBench
             300,
         );
 
-        $config = new FeatureFlagsConfig(
-            $this->createSyncApiClient(),
-            $tempCache,
-            new ContextResolver(['auto_resolve' => false, 'user_traits' => []]),
-            $this->createMockTelemetry(),
-            $this->createMockConversions(),
-            $this->createMockErrors(),
-            new FlagStateTracker(),
-            new OperatorEvaluator(),
-            true,
-        );
-
-        $ff = new FeatureFlags($config);
+        $ff = $this->createFeatureFlags($tempCache, apiClient: $this->createSyncApiClient());
         $ff->sync();
         $ff->active('simple-boolean', $this->context);
         $ff->active('single-rule-equals', $this->context);
@@ -808,9 +713,6 @@ class FeatureFlagsBench
     // CACHE INDEX REBUILD - Measures index reconstruction overhead
     // =========================================================================
 
-    /**
-     * Rebuild cache index from raw cache data.
-     */
     #[Bench\Revs(1000)]
     #[Bench\Iterations(5)]
     public function benchCacheIndexRebuild(): void
@@ -823,7 +725,22 @@ class FeatureFlagsBench
         $tempCache->put($this->mockApiResponse['flags'], 300);
         $tempCache->putSegments($this->mockApiResponse['segments'], 300);
 
-        // Force index rebuild by getting a flag
         $tempCache->get('simple-boolean');
+    }
+
+    private function createFeatureFlags(
+        FlagCache $cache,
+        ?ApiClient $apiClient = null,
+        ?ContextResolver $contextResolver = null,
+        ?TelemetryCollector $telemetry = null,
+    ): FeatureFlags {
+        return $this->createFeatureFlagsInstance(
+            apiClient: $apiClient ?? $this->createMockApiClient(),
+            cache: $cache,
+            contextResolver: $contextResolver ?? new ContextResolver(['auto_resolve' => false, 'user_traits' => []]),
+            telemetry: $telemetry ?? $this->createMockTelemetry(),
+            conversions: $this->createMockConversions(),
+            errors: $this->createMockErrors(),
+        );
     }
 }

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace FeatureFlags\Context;
 
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class RequestContext
@@ -17,24 +16,16 @@ class RequestContext
     {
         static::$requestId = (string) Str::ulid();
 
-        // Try to get the session ID if session is available
         try {
             if (function_exists('session')) {
                 $session = session();
-                if ($session->isStarted()) {
-                    static::$sessionId = $session->getId();
-                } else {
-                    // Fall back to request ID for sessionless requests (API, queue, etc.)
-                    static::$sessionId = static::$requestId;
-                }
+                static::$sessionId = $session->isStarted()
+                    ? $session->getId()
+                    : static::$requestId;
             } else {
                 static::$sessionId = static::$requestId;
             }
-        } catch (\Throwable $e) {
-            // Session not available (console, queue, etc.)
-            Log::debug('Feature flags: Session not available, using request ID as session ID', [
-                'error' => $e->getMessage(),
-            ]);
+        } catch (\Throwable) {
             static::$sessionId = static::$requestId;
         }
 

@@ -26,7 +26,7 @@ class WarmCommand extends Command
         }
 
         $maxRetries = max(1, (int) $this->option('retry'));
-        $retryDelay = max(1, (int) $this->option('retry-delay'));
+        $retryDelay = max(0, (int) $this->option('retry-delay'));
         $attempts = 0;
 
         $this->info('Warming feature flags cache...');
@@ -63,7 +63,7 @@ class WarmCommand extends Command
             } catch (FlagSyncException $e) {
                 $this->warn("Attempt {$attempts}/{$maxRetries} failed: {$e->getMessage()}");
 
-                if ($attempts < $maxRetries) {
+                if ($attempts < $maxRetries && $retryDelay > 0) {
                     $delay = $retryDelay * (2 ** ($attempts - 1)); // Exponential backoff
                     $this->line("  Retrying in {$delay} second(s)...");
                     sleep($delay);

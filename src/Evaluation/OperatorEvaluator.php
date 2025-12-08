@@ -18,6 +18,8 @@ class OperatorEvaluator
             'not_equals' => $this->notEquals($actual, $expected),
             'contains' => $this->contains($actual, $expected),
             'not_contains' => $this->notContains($actual, $expected),
+            'starts_with' => $this->startsWith($actual, $expected),
+            'ends_with' => $this->endsWith($actual, $expected),
             'matches_regex' => $this->matchesRegex($actual, $expected),
             'gt' => $this->greaterThan($actual, $expected),
             'gte' => $this->greaterThanOrEqual($actual, $expected),
@@ -54,6 +56,16 @@ class OperatorEvaluator
     private function notContains(mixed $actual, mixed $expected): bool
     {
         return is_string($actual) && is_string($expected) && !str_contains($actual, $expected);
+    }
+
+    private function startsWith(mixed $actual, mixed $expected): bool
+    {
+        return is_string($actual) && is_string($expected) && str_starts_with($actual, $expected);
+    }
+
+    private function endsWith(mixed $actual, mixed $expected): bool
+    {
+        return is_string($actual) && is_string($expected) && str_ends_with($actual, $expected);
     }
 
     private function matchesRegex(mixed $actual, mixed $pattern): bool
@@ -198,11 +210,6 @@ class OperatorEvaluator
             return false;
         }
 
-        return $this->calculateBucket($flagKey . ':' . $valueString) < $pct;
-    }
-
-    private function calculateBucket(string $seed): int
-    {
-        return abs(crc32($seed)) % 100;
+        return BucketCalculator::calculate($flagKey . ':' . $valueString) < $pct;
     }
 }

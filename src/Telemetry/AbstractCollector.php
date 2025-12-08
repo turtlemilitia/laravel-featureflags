@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace FeatureFlags\Telemetry;
 
 use FeatureFlags\Client\ApiClient;
+use FeatureFlags\Config\ConfigHelper;
 use FeatureFlags\Events\TelemetryFlushed;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -21,7 +22,7 @@ abstract class AbstractCollector
     public function __construct(
         protected readonly ApiClient $apiClient,
     ) {
-        $this->enabled = (bool) config('featureflags.telemetry.enabled', false);
+        $this->enabled = ConfigHelper::bool('featureflags.telemetry.enabled', false);
     }
 
     public function flush(): void
@@ -50,7 +51,7 @@ abstract class AbstractCollector
             $error = $e->getMessage();
             Log::warning($this->getFailureMessage() . ': ' . $error);
 
-            if ((bool) config('featureflags.telemetry.retry_on_failure', false)) {
+            if (ConfigHelper::bool('featureflags.telemetry.retry_on_failure', false)) {
                 $this->events = array_merge($events, $this->events);
             }
         }
@@ -77,20 +78,12 @@ abstract class AbstractCollector
 
     protected function getBatchSize(): int
     {
-        $size = config('featureflags.telemetry.batch_size', 100);
-
-        return is_int($size) ? $size : 100;
+        return ConfigHelper::int('featureflags.telemetry.batch_size', 100);
     }
 
     protected function shouldSample(): bool
     {
-        $sampleRate = config('featureflags.telemetry.sample_rate', 1.0);
-
-        if (!is_numeric($sampleRate)) {
-            return true;
-        }
-
-        $rate = (float) $sampleRate;
+        $rate = ConfigHelper::float('featureflags.telemetry.sample_rate', 1.0);
 
         if ($rate >= 1.0) {
             return true;
@@ -105,12 +98,11 @@ abstract class AbstractCollector
 
     private function canFlush(): bool
     {
-        if (!config('featureflags.telemetry.rate_limit.enabled', false)) {
+        if (!ConfigHelper::bool('featureflags.telemetry.rate_limit.enabled', false)) {
             return true;
         }
 
-        $maxFlushesConfig = config('featureflags.telemetry.rate_limit.max_flushes_per_minute', 60);
-        $maxFlushes = is_int($maxFlushesConfig) ? $maxFlushesConfig : 60;
+        $maxFlushes = ConfigHelper::int('featureflags.telemetry.rate_limit.max_flushes_per_minute', 60);
 
         /** @var int|null $cached */
         $cached = Cache::get(self::RATE_LIMIT_KEY);
@@ -121,7 +113,7 @@ abstract class AbstractCollector
 
     private function recordFlush(): void
     {
-        if (!config('featureflags.telemetry.rate_limit.enabled', false)) {
+        if (!ConfigHelper::bool('featureflags.telemetry.rate_limit.enabled', false)) {
             return;
         }
 
@@ -136,11 +128,11 @@ abstract class AbstractCollector
 
     private function dispatchTelemetryFlushedEvent(int $eventCount, bool $success, float $durationMs, ?string $error): void
     {
-        if (!config('featureflags.events.enabled', false)) {
+        if (!ConfigHelper::bool('featureflags.events.enabled', false)) {
             return;
         }
 
-        if (!config('featureflags.events.dispatch.telemetry_flushed', true)) {
+        if (!ConfigHelper::bool('featureflags.events.dispatch.telemetry_flushed', true)) {
             return;
         }
 
