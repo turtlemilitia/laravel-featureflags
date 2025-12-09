@@ -167,6 +167,26 @@ return [
 
         /*
         |----------------------------------------------------------------------
+        | Hold Until Consent (GDPR Compliance)
+        |----------------------------------------------------------------------
+        |
+        | When enabled, telemetry events are queued but not sent until
+        | explicit consent is granted via Feature::grantConsent().
+        |
+        | This allows feature flag bucketing to work immediately while
+        | deferring the transmission of analytics data until the user
+        | consents. If consent is denied, call Feature::discardHeldTelemetry()
+        | to clear queued events without sending.
+        |
+        | The consent_ttl_days setting controls how long consent is remembered
+        | via cookie. After expiry, the user will need to re-consent.
+        |
+        */
+        'hold_until_consent' => env('FEATUREFLAGS_HOLD_UNTIL_CONSENT', false),
+        'consent_ttl_days' => env('FEATUREFLAGS_CONSENT_TTL_DAYS', 365),
+
+        /*
+        |----------------------------------------------------------------------
         | Sampling Rate
         |----------------------------------------------------------------------
         |

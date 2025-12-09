@@ -22,6 +22,7 @@ the [Turtle Militia](https://turtlemilitia.com) feature flags dashboard.
 - [Local Development & Testing](#local-development--testing)
 - [Observability](#observability)
 - [Performance](#performance)
+- [GDPR Compliance](#gdpr-compliance)
 
 ## Features
 
@@ -37,6 +38,7 @@ the [Turtle Militia](https://turtlemilitia.com) feature flags dashboard.
 - **Auto-context** - Automatically resolves authenticated user context
 - **Cache warming** - `featureflags:warm` command for deployments
 - **Events** - Optional Laravel events for monitoring
+- **GDPR compliant** - Hold telemetry until user consent
 
 ## Installation
 
@@ -67,14 +69,16 @@ if (Feature::active('dark-mode')) {
 
 Most settings work via environment variables:
 
-| Variable                         | Description                       |
-|----------------------------------|-----------------------------------|
-| `FEATUREFLAGS_API_URL`           | API endpoint                      |
-| `FEATUREFLAGS_API_KEY`           | Your environment API key          |
-| `FEATUREFLAGS_WEBHOOK_ENABLED`   | Enable webhook endpoint           |
-| `FEATUREFLAGS_WEBHOOK_SECRET`    | Webhook signature secret          |
-| `FEATUREFLAGS_TELEMETRY_ENABLED` | Send evaluation data to dashboard |
-| `FEATUREFLAGS_LOCAL_MODE`        | Use locally-defined flags         |
+| Variable                         | Description                        |
+|----------------------------------|------------------------------------|
+| `FEATUREFLAGS_API_URL`           | API endpoint                       |
+| `FEATUREFLAGS_API_KEY`           | Your environment API key           |
+| `FEATUREFLAGS_WEBHOOK_ENABLED`   | Enable webhook endpoint            |
+| `FEATUREFLAGS_WEBHOOK_SECRET`    | Webhook signature secret           |
+| `FEATUREFLAGS_TELEMETRY_ENABLED` | Send evaluation data to dashboard  |
+| `FEATUREFLAGS_LOCAL_MODE`        | Use locally-defined flags          |
+| `FEATUREFLAGS_HOLD_UNTIL_CONSENT`| Hold telemetry until user consents |
+| `FEATUREFLAGS_CONSENT_TTL_DAYS`  | Days before consent expires (365)  |
 
 ## Usage
 
@@ -600,41 +604,75 @@ php artisan featureflags:warm --retry=3 --retry-delay=2
 
 ### Sampling
 
-Reduce tracked users to stay within your plan's MAU limit:
+Reduce telemetry volume for high-traffic sites:
 
 ```php
 'telemetry' => [
-    'sample_rate' => 0.1, // Track 10% of users
+    'sample_rate' => 0.1, // Track 10% of evaluations
 ],
 ```
 
-| Plan     | MAU Limit | Sample Rate          |
-|----------|-----------|----------------------|
-| Free     | 1,000     | 1.0 (up to 1K users) |
-| Starter  | 10,000    | 0.5 for >20K users   |
-| Pro      | 50,000    | 0.5 for >100K users  |
-| Business | 250,000   | 0.25 for >1M users   |
-
 ### Flush Rate Limiting
 
-Exceeding your API rate limit returns 429 and drops telemetry. Client-side limiting queues events to stay under the
-limit:
-
-| Plan     | API Limit | Max Flushes |
-|----------|-----------|-------------|
-| Free     | 60/min    | 50          |
-| Starter  | 300/min   | 250         |
-| Pro      | 600/min   | 500         |
-| Business | 1,200/min | 1,000       |
+Queue telemetry flushes to avoid hitting your plan's rate limit:
 
 ```php
 'telemetry' => [
     'rate_limit' => [
         'enabled' => true,
-        'max_flushes_per_minute' => 50,
+        'max_flushes_per_minute' => 60,
     ],
 ],
 ```
+
+## GDPR Compliance
+
+For GDPR-compliant telemetry, enable "hold until consent" mode. Feature flag evaluation works immediately, but telemetry is queued until the user consents.
+
+```env
+FEATUREFLAGS_HOLD_UNTIL_CONSENT=true
+```
+
+### Usage
+
+```php
+use FeatureFlags\Facades\Feature;
+
+// Flags work immediately (bucketing happens, telemetry is held)
+if (Feature::active('new-checkout')) {
+    // Show new checkout
+}
+
+// When user accepts analytics/cookies:
+Feature::grantConsent();  // Flushes held events, sets consent cookie
+
+// If user declines:
+Feature::discardHeldTelemetry();  // Clears queued events without sending
+
+// To revoke consent later:
+Feature::revokeConsent();  // Future telemetry will be held again
+
+// Check current state:
+Feature::isHoldingTelemetry();  // true if holding without consent
+```
+
+### How It Works
+
+1. **First visit**: Device ID cookie (`ff_device_id`) is set for consistent bucketing
+2. **Flag checks**: Evaluation works normally, telemetry events are queued
+3. **User consents**: `grantConsent()` flushes queued events and sets consent cookie (`ff_telemetry_consent`)
+4. **Subsequent visits**: Consent cookie is detected, telemetry flows normally
+
+### Configuration
+
+```php
+'telemetry' => [
+    'hold_until_consent' => env('FEATUREFLAGS_HOLD_UNTIL_CONSENT', false),
+    'consent_ttl_days' => env('FEATUREFLAGS_CONSENT_TTL_DAYS', 365),
+],
+```
+
+After `consent_ttl_days`, the consent cookie expires and the user will need to re-consent.
 
 ## License
 

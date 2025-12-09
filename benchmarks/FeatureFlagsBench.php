@@ -17,7 +17,7 @@ use Illuminate\Cache\ArrayStore;
 use Illuminate\Cache\FileStore;
 use Illuminate\Cache\Repository;
 use Illuminate\Config\Repository as ConfigRepository;
-use Illuminate\Container\Container;
+use Illuminate\Foundation\Application;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Facades\Facade;
@@ -34,7 +34,7 @@ class FeatureFlagsBench
     private FlagCache $cache;
     private FlagCache $fileCache;
     private Context $context;
-    private Container $app;
+    private Application $app;
     /** @var array<string, mixed> */
     private array $mockApiResponse;
 
@@ -89,8 +89,8 @@ class FeatureFlagsBench
 
     private function bootstrapLaravel(): void
     {
-        $this->app = new Container();
-        Container::setInstance($this->app);
+        $this->app = new Application();
+        Application::setInstance($this->app);
 
         $this->app->singleton('config', fn() => new ConfigRepository([
             'featureflags' => [

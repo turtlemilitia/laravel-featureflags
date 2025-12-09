@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace FeatureFlags\Telemetry;
 
 use FeatureFlags\Context;
+use FeatureFlags\Context\DeviceIdentifier;
 use FeatureFlags\Context\RequestContext;
 
 class TelemetryCollector extends AbstractCollector
@@ -30,6 +31,7 @@ class TelemetryCollector extends AbstractCollector
             'flag_key' => $flagKey,
             'value' => $value,
             'context_id' => $context?->id,
+            'device_id' => ($context !== null ? $context->deviceId : null) ?? DeviceIdentifier::get(),
             'session_id' => RequestContext::getSessionId(),
             'request_id' => RequestContext::getRequestId(),
             'timestamp' => now()->toIso8601String(),

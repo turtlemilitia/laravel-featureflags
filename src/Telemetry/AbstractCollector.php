@@ -6,6 +6,7 @@ namespace FeatureFlags\Telemetry;
 
 use FeatureFlags\Client\ApiClient;
 use FeatureFlags\Config\ConfigHelper;
+use FeatureFlags\Context\DeviceIdentifier;
 use FeatureFlags\Events\TelemetryFlushed;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
@@ -19,10 +20,23 @@ abstract class AbstractCollector
 
     protected bool $enabled;
 
+    protected bool $holdMode = false;
+
     public function __construct(
         protected readonly ApiClient $apiClient,
     ) {
         $this->enabled = ConfigHelper::bool('featureflags.telemetry.enabled', false);
+        $this->holdMode = ConfigHelper::bool('featureflags.telemetry.hold_until_consent', false);
+    }
+
+    public function isHolding(): bool
+    {
+        return $this->holdMode && !DeviceIdentifier::hasConsent();
+    }
+
+    public function discardHeld(): void
+    {
+        $this->events = [];
     }
 
     public function flush(): void
@@ -73,6 +87,10 @@ abstract class AbstractCollector
 
     protected function shouldAutoFlush(): bool
     {
+        if ($this->isHolding()) {
+            return false;
+        }
+
         return count($this->events) >= $this->getBatchSize();
     }
 

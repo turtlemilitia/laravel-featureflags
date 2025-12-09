@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace FeatureFlags;
 
+use FeatureFlags\Context\DeviceIdentifier;
 use FeatureFlags\Context\RequestContext;
 use FeatureFlags\Contracts\FeatureFlagsInterface;
 use FeatureFlags\Contracts\HasFeatureFlagContext;
@@ -138,5 +139,30 @@ readonly class FeatureFlags implements FeatureFlagsInterface
     public function resetStateTracker(): void
     {
         $this->flagService->resetStateTracker();
+    }
+
+    public function grantConsent(): void
+    {
+        DeviceIdentifier::grantConsent();
+        $this->flagService->flushTelemetry();
+        $this->conversions->flush();
+        $this->errors->flush();
+    }
+
+    public function discardHeldTelemetry(): void
+    {
+        $this->flagService->discardHeldTelemetry();
+        $this->conversions->discardHeld();
+        $this->errors->discardHeld();
+    }
+
+    public function isHoldingTelemetry(): bool
+    {
+        return $this->flagService->isHoldingTelemetry();
+    }
+
+    public function revokeConsent(): void
+    {
+        DeviceIdentifier::revokeConsent();
     }
 }

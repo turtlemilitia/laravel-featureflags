@@ -26,6 +26,10 @@ use Illuminate\Support\Facades\Facade;
  * @method static FlagStateTracker getStateTracker()
  * @method static void resetStateTracker()
  * @method static void flushAllTelemetryAndReset()
+ * @method static void grantConsent()
+ * @method static void discardHeldTelemetry()
+ * @method static bool isHoldingTelemetry()
+ * @method static void revokeConsent()
  *
  * @see FeatureFlags
  */

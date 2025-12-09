@@ -65,4 +65,12 @@ interface FeatureFlagsInterface
     public function getStateTracker(): FlagStateTracker;
 
     public function resetStateTracker(): void;
+
+    public function grantConsent(): void;
+
+    public function discardHeldTelemetry(): void;
+
+    public function isHoldingTelemetry(): bool;
+
+    public function revokeConsent(): void;
 }

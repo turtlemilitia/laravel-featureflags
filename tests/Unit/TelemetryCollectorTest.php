@@ -4,6 +4,7 @@ namespace FeatureFlags\Tests\Unit;
 
 use FeatureFlags\Client\ApiClient;
 use FeatureFlags\Context;
+use FeatureFlags\Context\DeviceIdentifier;
 use FeatureFlags\Exceptions\ApiException;
 use FeatureFlags\Telemetry\TelemetryCollector;
 use FeatureFlags\Tests\TestCase;
@@ -13,6 +14,7 @@ class TelemetryCollectorTest extends TestCase
 {
     protected function tearDown(): void
     {
+        DeviceIdentifier::reset();
         Mockery::close();
         parent::tearDown();
     }
@@ -300,5 +302,124 @@ class TelemetryCollectorTest extends TestCase
         $this->assertEquals(1, $event['matched_rule_index']);
         $this->assertEquals(3, $event['duration_ms']);
         $this->assertArrayHasKey('timestamp', $event);
+    }
+
+    public function test_hold_mode_prevents_auto_flush(): void
+    {
+        config(['featureflags.telemetry.enabled' => true]);
+        config(['featureflags.telemetry.batch_size' => 2]);
+        config(['featureflags.telemetry.hold_until_consent' => true]);
+
+        $mockApiClient = Mockery::mock(ApiClient::class);
+        $mockApiClient->shouldNotReceive('sendTelemetry');
+
+        $collector = new TelemetryCollector($mockApiClient);
+
+        $context = new Context('user-123');
+        $collector->record('flag-1', true, $context);
+        $collector->record('flag-2', false, $context);
+        $collector->record('flag-3', 'value', $context);
+
+        // Events should be held, not flushed
+        $this->assertEquals(3, $collector->pendingCount());
+        $this->assertTrue($collector->isHolding());
+    }
+
+    public function test_flush_after_consent_sends_held_events(): void
+    {
+        config(['featureflags.telemetry.enabled' => true]);
+        config(['featureflags.telemetry.batch_size' => 100]);
+        config(['featureflags.telemetry.hold_until_consent' => true]);
+
+        $mockApiClient = Mockery::mock(ApiClient::class);
+        $mockApiClient->shouldReceive('sendTelemetry')->once();
+
+        $collector = new TelemetryCollector($mockApiClient);
+
+        $context = new Context('user-123');
+        $collector->record('flag-1', true, $context);
+        $collector->record('flag-2', false, $context);
+
+        $this->assertEquals(2, $collector->pendingCount());
+        $this->assertTrue($collector->isHolding());
+
+        // Grant consent via DeviceIdentifier, then flush
+        DeviceIdentifier::grantConsent();
+        $collector->flush();
+
+        $this->assertEquals(0, $collector->pendingCount());
+        $this->assertFalse($collector->isHolding());
+    }
+
+    public function test_discard_held_clears_events_without_sending(): void
+    {
+        config(['featureflags.telemetry.enabled' => true]);
+        config(['featureflags.telemetry.batch_size' => 100]);
+        config(['featureflags.telemetry.hold_until_consent' => true]);
+
+        $mockApiClient = Mockery::mock(ApiClient::class);
+        $mockApiClient->shouldNotReceive('sendTelemetry');
+
+        $collector = new TelemetryCollector($mockApiClient);
+
+        $context = new Context('user-123');
+        $collector->record('flag-1', true, $context);
+        $collector->record('flag-2', false, $context);
+
+        $this->assertEquals(2, $collector->pendingCount());
+
+        $collector->discardHeld();
+
+        $this->assertEquals(0, $collector->pendingCount());
+    }
+
+    public function test_is_not_holding_when_hold_mode_disabled(): void
+    {
+        config(['featureflags.telemetry.enabled' => true]);
+        config(['featureflags.telemetry.hold_until_consent' => false]);
+
+        $mockApiClient = Mockery::mock(ApiClient::class);
+        $collector = new TelemetryCollector($mockApiClient);
+
+        $this->assertFalse($collector->isHolding());
+    }
+
+    public function test_is_not_holding_after_consent_granted(): void
+    {
+        config(['featureflags.telemetry.enabled' => true]);
+        config(['featureflags.telemetry.hold_until_consent' => true]);
+
+        $mockApiClient = Mockery::mock(ApiClient::class);
+
+        $collector = new TelemetryCollector($mockApiClient);
+
+        $this->assertTrue($collector->isHolding());
+
+        DeviceIdentifier::grantConsent();
+
+        $this->assertFalse($collector->isHolding());
+    }
+
+    public function test_auto_flushes_after_consent_granted(): void
+    {
+        config(['featureflags.telemetry.enabled' => true]);
+        config(['featureflags.telemetry.batch_size' => 2]);
+        config(['featureflags.telemetry.hold_until_consent' => true]);
+
+        $mockApiClient = Mockery::mock(ApiClient::class);
+        // Only called once from auto-flush at batch_size
+        $mockApiClient->shouldReceive('sendTelemetry')->once();
+
+        $collector = new TelemetryCollector($mockApiClient);
+
+        // Grant consent (via DeviceIdentifier, not collector - no flush of empty events)
+        DeviceIdentifier::grantConsent();
+
+        $context = new Context('user-123');
+        $collector->record('flag-1', true, $context);
+        $collector->record('flag-2', false, $context);
+
+        // Should auto-flush since we have consent
+        $this->assertEquals(0, $collector->pendingCount());
     }
 }

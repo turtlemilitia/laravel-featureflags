@@ -61,6 +61,7 @@ class RequestContext
         static::$sessionId = null;
         static::$requestId = null;
         static::$initialized = false;
+        DeviceIdentifier::reset();
     }
 
     public static function isInitialized(): bool

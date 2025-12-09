@@ -200,6 +200,21 @@ readonly class FlagService
         $this->stateTracker->reset();
     }
 
+    public function flushTelemetry(): void
+    {
+        $this->telemetry->flush();
+    }
+
+    public function discardHeldTelemetry(): void
+    {
+        $this->telemetry->discardHeld();
+    }
+
+    public function isHoldingTelemetry(): bool
+    {
+        return $this->telemetry->isHolding();
+    }
+
     private function handleSyncFailure(ApiException $e): void
     {
         $behavior = ConfigHelper::string('featureflags.fallback.behavior', 'cache');

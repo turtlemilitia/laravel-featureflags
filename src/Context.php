@@ -4,25 +4,32 @@ declare(strict_types=1);
 
 namespace FeatureFlags;
 
+use FeatureFlags\Context\DeviceIdentifier;
 use Illuminate\Support\Arr;
 
-class Context
+readonly class Context
 {
     /**
      * @param array<string, mixed> $traits
      */
     public function __construct(
-        public readonly string|int $id,
-        public readonly array $traits = [],
+        public string|int $id,
+        public array      $traits = [],
+        public ?string    $deviceId = null,
     ) {}
 
     /**
      * @param string|int $id
      * @param array<string, mixed> $traits
      */
-    public static function make(string|int $id, array $traits = []): self
+    public static function make(string|int $id, array $traits = [], ?string $deviceId = null): self
     {
-        return new self($id, $traits);
+        return new self($id, $traits, $deviceId ?? DeviceIdentifier::get());
+    }
+
+    public function getBucketingId(): string
+    {
+        return $this->deviceId ?? (string) $this->id;
     }
 
     /**
@@ -47,13 +54,14 @@ class Context
     }
 
     /**
-     * @return array{id: string|int, traits: array<string, mixed>}
+     * @return array{id: string|int, traits: array<string, mixed>, deviceId: string|null}
      */
     public function toArray(): array
     {
         return [
             'id' => $this->id,
             'traits' => $this->traits,
+            'deviceId' => $this->deviceId,
         ];
     }
 }

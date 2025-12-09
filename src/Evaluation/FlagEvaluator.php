@@ -147,7 +147,7 @@ readonly class FlagEvaluator
         /** @var string $flagKey */
         $flagKey = $flag['key'] ?? '';
 
-        if ($this->isInRollout($flagKey, $context->id, $rolloutPercentage)) {
+        if ($this->isInRollout($flagKey, $context, $rolloutPercentage)) {
             return $this->result($defaultValue, MatchReason::Rollout, -1);
         }
 
@@ -307,8 +307,8 @@ readonly class FlagEvaluator
         return true;
     }
 
-    private function isInRollout(string $flagKey, string|int $contextId, int $percentage): bool
+    private function isInRollout(string $flagKey, Context $context, int $percentage): bool
     {
-        return BucketCalculator::calculate($flagKey . $contextId) < ($percentage * 100);
+        return BucketCalculator::calculate($flagKey . $context->getBucketingId()) < ($percentage * 100);
     }
 }
