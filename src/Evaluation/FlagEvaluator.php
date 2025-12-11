@@ -41,6 +41,11 @@ readonly class FlagEvaluator
             return $this->result($ruleResult['value'], MatchReason::Rule, $ruleResult['index']);
         }
 
+        $experimentResult = $this->evaluateExperiment($flag, $context);
+        if ($experimentResult !== null) {
+            return $this->result($experimentResult, MatchReason::Experiment);
+        }
+
         return $this->evaluateRollout($flag, $context);
     }
 
@@ -310,5 +315,52 @@ readonly class FlagEvaluator
     private function isInRollout(string $flagKey, Context $context, int $percentage): bool
     {
         return BucketCalculator::calculate($flagKey . $context->getBucketingId()) < ($percentage * 100);
+    }
+
+    /**
+     * @param array<string, mixed> $flag
+     * @return bool|int|float|string|array<string, mixed>|null
+     */
+    private function evaluateExperiment(array $flag, ?Context $context): bool|int|float|string|array|null
+    {
+        /** @var list<mixed>|null $variants */
+        $variants = $flag['variants'] ?? null;
+        /** @var array{id: string, control: string|null, traffic_percentage: int}|null $experiment */
+        $experiment = $flag['experiment'] ?? null;
+
+        if ($variants === null || empty($variants) || $experiment === null) {
+            return null;
+        }
+
+        if ($context === null) {
+            return null;
+        }
+
+        /** @var string $flagKey */
+        $flagKey = $flag['key'] ?? '';
+
+        $trafficPercentage = $experiment['traffic_percentage'];
+        if ($trafficPercentage < 100) {
+            $inExperiment = BucketCalculator::calculate(
+                $flagKey . ':experiment:' . $context->getBucketingId(),
+            ) < ($trafficPercentage * 100);
+
+            if (!$inExperiment) {
+                return null;
+            }
+        }
+
+        $bucket = BucketCalculator::calculate(
+            $flagKey . ':variant:' . $context->getBucketingId(),
+        );
+
+        $variantCount = count($variants);
+        $bucketSize = 10000 / $variantCount;
+        $variantIndex = min((int) floor($bucket / $bucketSize), $variantCount - 1);
+
+        /** @var bool|int|float|string|array<string, mixed>|null $variant */
+        $variant = $variants[$variantIndex];
+
+        return $variant;
     }
 }

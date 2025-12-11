@@ -55,11 +55,14 @@ class FeatureFlagsServiceProvider extends ServiceProvider
             return new TelemetryCollector($app->make(ApiClient::class));
         });
 
-        $this->app->singleton(ConversionCollector::class, function (Application $app): ConversionCollector {
-            return new ConversionCollector($app->make(ApiClient::class));
-        });
-
         $this->app->singleton(FlagStateTracker::class, fn(): FlagStateTracker => new FlagStateTracker());
+
+        $this->app->singleton(ConversionCollector::class, function (Application $app): ConversionCollector {
+            return new ConversionCollector(
+                $app->make(ApiClient::class),
+                $app->make(FlagStateTracker::class),
+            );
+        });
 
         $this->app->singleton(ErrorCollector::class, function (Application $app): ErrorCollector {
             return new ErrorCollector(

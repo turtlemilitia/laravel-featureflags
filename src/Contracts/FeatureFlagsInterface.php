@@ -29,13 +29,18 @@ interface FeatureFlagsInterface
     public function flush(): void;
 
     /**
-     * @param Context|HasFeatureFlagContext|array<string, mixed>|null $context
-     * @param array<string, mixed> $properties
+     * @param string $eventName The conversion event name (e.g., 'purchase', 'signup')
+     * @param Context|HasFeatureFlagContext|array<string, mixed>|null $context The user context
+     * @param array<string, mixed> $properties Additional event properties
+     * @param string|null $flagKey Optional: explicitly attribute to a specific flag
+     * @param bool|int|float|string|array<string, mixed>|null $flagValue Optional: the variant value
      */
     public function trackConversion(
         string $eventName,
         Context|HasFeatureFlagContext|array|null $context = null,
         array $properties = [],
+        ?string $flagKey = null,
+        bool|int|float|string|array|null $flagValue = null,
     ): void;
 
     public function flushConversions(): void;

@@ -709,9 +709,297 @@ class FlagEvaluatorTest extends TestCase
         $this->assertEquals('default', $result['value']);
     }
 
-    // =========================================================================
-    // VALUE NORMALIZATION
-    // =========================================================================
+    public function test_experiment_assigns_variant_deterministically(): void
+    {
+        $flag = [
+            'key' => 'experiment-flag',
+            'enabled' => true,
+            'default_value' => 'control',
+            'variants' => ['blue', 'red', 'green'],
+            'experiment' => [
+                'id' => 'exp-123',
+                'control' => 'blue',
+                'traffic_percentage' => 100,
+            ],
+        ];
+
+        // Same user should always get the same variant
+        $context = new Context('user-123', []);
+        $result1 = $this->evaluate($flag, $context);
+        $result2 = $this->evaluate($flag, $context);
+
+        $this->assertEquals($result1['value'], $result2['value']);
+        $this->assertEquals(MatchReason::Experiment->value, $result1['match_reason']);
+        $this->assertContains($result1['value'], ['blue', 'red', 'green']);
+    }
+
+    public function test_experiment_distributes_users_across_variants(): void
+    {
+        $flag = [
+            'key' => 'distribution-flag',
+            'enabled' => true,
+            'default_value' => 'control',
+            'variants' => ['A', 'B'],
+            'experiment' => [
+                'id' => 'exp-distribution',
+                'control' => 'A',
+                'traffic_percentage' => 100,
+            ],
+        ];
+
+        $counts = ['A' => 0, 'B' => 0];
+
+        // Test with many users to verify distribution
+        for ($i = 0; $i < 1000; $i++) {
+            $context = new Context("user-$i", []);
+            $result = $this->evaluate($flag, $context);
+            $counts[$result['value']]++;
+        }
+
+        // Each variant should get roughly 50% (allow 10% tolerance)
+        $this->assertGreaterThan(400, $counts['A'], 'Variant A should get ~50% of users');
+        $this->assertGreaterThan(400, $counts['B'], 'Variant B should get ~50% of users');
+    }
+
+    public function test_experiment_with_traffic_percentage_creates_holdout(): void
+    {
+        $flag = [
+            'key' => 'holdout-flag',
+            'enabled' => true,
+            'default_value' => 'default-value',
+            'variants' => ['treatment-a', 'treatment-b'],
+            'experiment' => [
+                'id' => 'exp-holdout',
+                'control' => 'treatment-a',
+                'traffic_percentage' => 50, // 50% in experiment, 50% holdout
+            ],
+        ];
+
+        $experimentCount = 0;
+        $defaultCount = 0;
+
+        for ($i = 0; $i < 1000; $i++) {
+            $context = new Context("user-$i", []);
+            $result = $this->evaluate($flag, $context);
+
+            if ($result['match_reason'] === MatchReason::Experiment->value) {
+                $experimentCount++;
+                $this->assertContains($result['value'], ['treatment-a', 'treatment-b']);
+            } else {
+                $defaultCount++;
+                $this->assertEquals('default-value', $result['value']);
+            }
+        }
+
+        // Should be roughly 50/50 split (allow 10% tolerance)
+        $this->assertGreaterThan(400, $experimentCount, 'About 50% should be in experiment');
+        $this->assertGreaterThan(400, $defaultCount, 'About 50% should be in holdout');
+    }
+
+    public function test_experiment_requires_context_for_bucketing(): void
+    {
+        $flag = [
+            'key' => 'context-required-flag',
+            'enabled' => true,
+            'default_value' => 'default-value',
+            'variants' => ['variant-a', 'variant-b'],
+            'experiment' => [
+                'id' => 'exp-context',
+                'control' => 'variant-a',
+                'traffic_percentage' => 100,
+            ],
+        ];
+
+        // No context - should fall through to default
+        $result = $this->evaluate($flag);
+
+        $this->assertEquals('default-value', $result['value']);
+        $this->assertEquals(MatchReason::Default->value, $result['match_reason']);
+    }
+
+    public function test_experiment_skipped_without_variants(): void
+    {
+        $flag = [
+            'key' => 'no-variants-flag',
+            'enabled' => true,
+            'default_value' => 'default-value',
+            'variants' => [], // Empty variants
+            'experiment' => [
+                'id' => 'exp-no-variants',
+                'control' => null,
+                'traffic_percentage' => 100,
+            ],
+        ];
+
+        $context = new Context('user-123', []);
+        $result = $this->evaluate($flag, $context);
+
+        // Should fall through to default (no variants to assign)
+        $this->assertEquals('default-value', $result['value']);
+        $this->assertEquals(MatchReason::Default->value, $result['match_reason']);
+    }
+
+    public function test_experiment_skipped_without_experiment_data(): void
+    {
+        $flag = [
+            'key' => 'no-experiment-flag',
+            'enabled' => true,
+            'default_value' => 'default-value',
+            'variants' => ['variant-a', 'variant-b'],
+            // No experiment field
+        ];
+
+        $context = new Context('user-123', []);
+        $result = $this->evaluate($flag, $context);
+
+        // Should fall through to default (no experiment running)
+        $this->assertEquals('default-value', $result['value']);
+        $this->assertEquals(MatchReason::Default->value, $result['match_reason']);
+    }
+
+    public function test_rules_take_precedence_over_experiment(): void
+    {
+        $flag = [
+            'key' => 'rules-first-flag',
+            'enabled' => true,
+            'default_value' => 'default-value',
+            'variants' => ['variant-a', 'variant-b'],
+            'experiment' => [
+                'id' => 'exp-rules',
+                'control' => 'variant-a',
+                'traffic_percentage' => 100,
+            ],
+            'rules' => [
+                [
+                    'priority' => 1,
+                    'conditions' => [
+                        ['trait' => 'plan', 'operator' => 'equals', 'value' => 'pro'],
+                    ],
+                    'value' => 'pro-override',
+                ],
+            ],
+        ];
+
+        // User matches rule - should get rule value, not experiment variant
+        $context = new Context('user-123', ['plan' => 'pro']);
+        $result = $this->evaluate($flag, $context);
+
+        $this->assertEquals('pro-override', $result['value']);
+        $this->assertEquals(MatchReason::Rule->value, $result['match_reason']);
+    }
+
+    public function test_experiment_takes_precedence_over_rollout(): void
+    {
+        $flag = [
+            'key' => 'exp-over-rollout',
+            'enabled' => true,
+            'default_value' => true,
+            'variants' => ['variant-a', 'variant-b'],
+            'experiment' => [
+                'id' => 'exp-rollout',
+                'control' => 'variant-a',
+                'traffic_percentage' => 100,
+            ],
+            'rollout_percentage' => 50, // This should be ignored when experiment is active
+        ];
+
+        $context = new Context('user-123', []);
+        $result = $this->evaluate($flag, $context);
+
+        // Should get experiment variant, not rollout result
+        $this->assertEquals(MatchReason::Experiment->value, $result['match_reason']);
+        $this->assertContains($result['value'], ['variant-a', 'variant-b']);
+    }
+
+    public function test_experiment_with_numeric_variants(): void
+    {
+        $flag = [
+            'key' => 'numeric-variants-flag',
+            'enabled' => true,
+            'default_value' => 0,
+            'variants' => [10, 20, 30],
+            'experiment' => [
+                'id' => 'exp-numeric',
+                'control' => 10,
+                'traffic_percentage' => 100,
+            ],
+        ];
+
+        $context = new Context('user-123', []);
+        $result = $this->evaluate($flag, $context);
+
+        $this->assertEquals(MatchReason::Experiment->value, $result['match_reason']);
+        $this->assertContains($result['value'], [10, 20, 30]);
+    }
+
+    public function test_experiment_with_boolean_variants(): void
+    {
+        $flag = [
+            'key' => 'boolean-variants-flag',
+            'enabled' => true,
+            'default_value' => false,
+            'variants' => [true, false],
+            'experiment' => [
+                'id' => 'exp-boolean',
+                'control' => false,
+                'traffic_percentage' => 100,
+            ],
+        ];
+
+        $context = new Context('user-123', []);
+        $result = $this->evaluate($flag, $context);
+
+        $this->assertEquals(MatchReason::Experiment->value, $result['match_reason']);
+        $this->assertIsBool($result['value']);
+    }
+
+    public function test_experiment_zero_traffic_percentage_excludes_all_users(): void
+    {
+        $flag = [
+            'key' => 'zero-traffic-flag',
+            'enabled' => true,
+            'default_value' => 'default-value',
+            'variants' => ['variant-a', 'variant-b'],
+            'experiment' => [
+                'id' => 'exp-zero',
+                'control' => 'variant-a',
+                'traffic_percentage' => 0, // No one in experiment
+            ],
+        ];
+
+        // All users should be in holdout
+        for ($i = 0; $i < 100; $i++) {
+            $context = new Context("user-$i", []);
+            $result = $this->evaluate($flag, $context);
+
+            $this->assertEquals('default-value', $result['value']);
+            $this->assertEquals(MatchReason::Default->value, $result['match_reason']);
+        }
+    }
+
+    public function test_experiment_full_traffic_includes_all_users(): void
+    {
+        $flag = [
+            'key' => 'full-traffic-flag',
+            'enabled' => true,
+            'default_value' => 'default-value',
+            'variants' => ['variant-a', 'variant-b'],
+            'experiment' => [
+                'id' => 'exp-full',
+                'control' => 'variant-a',
+                'traffic_percentage' => 100, // Everyone in experiment
+            ],
+        ];
+
+        // All users should be in experiment
+        for ($i = 0; $i < 100; $i++) {
+            $context = new Context("user-$i", []);
+            $result = $this->evaluate($flag, $context);
+
+            $this->assertEquals(MatchReason::Experiment->value, $result['match_reason']);
+            $this->assertContains($result['value'], ['variant-a', 'variant-b']);
+        }
+    }
 
     public function test_normalizes_various_value_types(): void
     {

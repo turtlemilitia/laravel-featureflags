@@ -9,6 +9,7 @@ enum MatchReason: string
     case Disabled = 'disabled';
     case Dependency = 'dependency';
     case Rule = 'rule';
+    case Experiment = 'experiment';
     case Rollout = 'rollout';
     case RolloutMiss = 'rollout_miss';
     case Default = 'default';
