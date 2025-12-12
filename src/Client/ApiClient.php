@@ -54,7 +54,7 @@ class ApiClient
         }
 
         try {
-            $response = $this->client->get('api/flags');
+            $response = $this->client->get('flags');
             $body = $response->getBody()->getContents();
             $data = json_decode($body, true);
 
@@ -84,7 +84,7 @@ class ApiClient
      */
     public function sendTelemetry(array $events): void
     {
-        $this->sendToEndpoint('api/telemetry', ['events' => $events], 'telemetry');
+        $this->sendToEndpoint('telemetry', ['events' => $events], 'telemetry');
     }
 
     /**
@@ -93,7 +93,7 @@ class ApiClient
      */
     public function sendConversions(array $events): void
     {
-        $this->sendToEndpoint('api/conversions', ['events' => $events], 'conversions');
+        $this->sendToEndpoint('conversions', ['events' => $events], 'conversions');
     }
 
     /**
@@ -102,7 +102,7 @@ class ApiClient
      */
     public function sendErrors(array $errors): void
     {
-        $this->sendToEndpoint('api/errors', ['errors' => $errors], 'errors');
+        $this->sendToEndpoint('errors', ['errors' => $errors], 'errors');
     }
 
     /**
