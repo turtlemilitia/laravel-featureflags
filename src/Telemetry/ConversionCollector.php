@@ -76,6 +76,9 @@ class ConversionCollector extends AbstractCollector
         return 'Failed to send conversion events';
     }
 
+    /**
+     * @return 'conversions'
+     */
     protected function getTelemetryType(): string
     {
         return 'conversions';

@@ -159,11 +159,28 @@ return [
     'telemetry' => [
         'enabled' => env('FEATUREFLAGS_TELEMETRY_ENABLED', false),
 
+        /*
+        |----------------------------------------------------------------------
+        | Async Mode (Queue)
+        |----------------------------------------------------------------------
+        |
+        | When enabled, telemetry is dispatched to a queue job instead of
+        | being sent synchronously at the end of each request. This prevents
+        | API latency from affecting your application's response time.
+        |
+        | Requires a configured queue driver (Redis, database, SQS, etc.).
+        | The job will retry up to 3 times on failure.
+        |
+        */
+        'async' => env('FEATUREFLAGS_TELEMETRY_ASYNC', false),
+
+        'queue' => env('FEATUREFLAGS_TELEMETRY_QUEUE', null), // null = default queue
+
         'batch_size' => 100, // Flush evaluations after this many events
 
         'error_batch_size' => 10, // Flush errors after this many events
 
-        'retry_on_failure' => false, // Re-queue events if send fails
+        'retry_on_failure' => false, // Re-queue events if sync send fails (ignored in async mode)
 
         /*
         |----------------------------------------------------------------------

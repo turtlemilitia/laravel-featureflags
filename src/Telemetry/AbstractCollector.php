@@ -8,6 +8,7 @@ use FeatureFlags\Client\ApiClient;
 use FeatureFlags\Config\ConfigHelper;
 use FeatureFlags\Context\DeviceIdentifier;
 use FeatureFlags\Events\TelemetryFlushed;
+use FeatureFlags\Jobs\SendTelemetry;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
@@ -22,11 +23,17 @@ abstract class AbstractCollector
 
     protected bool $holdMode = false;
 
+    protected bool $asyncMode = false;
+
+    protected ?string $queue = null;
+
     public function __construct(
         protected readonly ApiClient $apiClient,
     ) {
         $this->enabled = ConfigHelper::bool('featureflags.telemetry.enabled', false);
         $this->holdMode = ConfigHelper::bool('featureflags.telemetry.hold_until_consent', false);
+        $this->asyncMode = ConfigHelper::bool('featureflags.telemetry.async', false);
+        $this->queue = ConfigHelper::stringOrNull('featureflags.telemetry.queue');
     }
 
     public function isHolding(): bool
@@ -53,6 +60,13 @@ abstract class AbstractCollector
         $eventCount = count($events);
         $this->events = [];
 
+        if ($this->asyncMode) {
+            $this->dispatchAsync($events);
+            $this->recordFlush();
+            $this->dispatchTelemetryFlushedEvent($eventCount, true, 0, null);
+            return;
+        }
+
         $startTime = hrtime(true);
         $success = false;
         $error = null;
@@ -73,6 +87,20 @@ abstract class AbstractCollector
         $durationMs = (hrtime(true) - $startTime) / 1_000_000;
 
         $this->dispatchTelemetryFlushedEvent($eventCount, $success, $durationMs, $error);
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $events
+     */
+    private function dispatchAsync(array $events): void
+    {
+        $job = new SendTelemetry($this->getTelemetryType(), $events);
+
+        if ($this->queue !== null) {
+            $job->onQueue($this->queue);
+        }
+
+        dispatch($job);
     }
 
     public function pendingCount(): int
@@ -163,6 +191,9 @@ abstract class AbstractCollector
         );
     }
 
+    /**
+     * @return 'telemetry'|'conversions'|'errors'
+     */
     abstract protected function getTelemetryType(): string;
 
     /**

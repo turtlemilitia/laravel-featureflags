@@ -115,6 +115,9 @@ class ErrorCollector extends AbstractCollector
         }
     }
 
+    /**
+     * @return 'errors'
+     */
     protected function getTelemetryType(): string
     {
         return 'errors';

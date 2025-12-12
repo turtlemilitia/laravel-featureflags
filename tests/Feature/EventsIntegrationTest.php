@@ -112,7 +112,7 @@ class EventsIntegrationTest extends FeatureTestCase
         $telemetry->flush();
 
         Event::assertDispatched(TelemetryFlushed::class, function (TelemetryFlushed $event) {
-            return $event->type === 'evaluations'
+            return $event->type === 'telemetry'
                 && $event->eventCount === 1
                 && $event->durationMs >= 0;
         });

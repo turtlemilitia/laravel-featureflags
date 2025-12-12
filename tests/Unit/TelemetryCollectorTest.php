@@ -6,8 +6,11 @@ use FeatureFlags\Client\ApiClient;
 use FeatureFlags\Context;
 use FeatureFlags\Context\DeviceIdentifier;
 use FeatureFlags\Exceptions\ApiException;
+use FeatureFlags\Jobs\SendTelemetry;
 use FeatureFlags\Telemetry\TelemetryCollector;
 use FeatureFlags\Tests\TestCase;
+use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Queue;
 use Mockery;
 
 class TelemetryCollectorTest extends TestCase
@@ -420,6 +423,79 @@ class TelemetryCollectorTest extends TestCase
         $collector->record('flag-2', false, $context);
 
         // Should auto-flush since we have consent
+        $this->assertEquals(0, $collector->pendingCount());
+    }
+
+    public function test_async_mode_dispatches_job_instead_of_calling_api(): void
+    {
+        Bus::fake([SendTelemetry::class]);
+
+        config(['featureflags.telemetry.enabled' => true]);
+        config(['featureflags.telemetry.async' => true]);
+        config(['featureflags.telemetry.batch_size' => 100]);
+
+        $mockApiClient = Mockery::mock(ApiClient::class);
+        // In async mode, API should NOT be called directly on the collector
+        $mockApiClient->shouldNotReceive('sendTelemetry');
+
+        $collector = new TelemetryCollector($mockApiClient);
+
+        $context = new Context('user-123');
+        $collector->record('flag-1', true, $context);
+        $collector->record('flag-2', false, $context);
+
+        $this->assertEquals(2, $collector->pendingCount());
+
+        // Flush should dispatch to queue, not call API
+        $collector->flush();
+
+        // Events should be cleared after dispatch
+        $this->assertEquals(0, $collector->pendingCount());
+
+        // Assert job was dispatched with correct type and events
+        Bus::assertDispatched(SendTelemetry::class, function (SendTelemetry $job) {
+            return $job->type === 'telemetry' && count($job->events) === 2;
+        });
+    }
+
+    public function test_async_mode_uses_custom_queue(): void
+    {
+        Bus::fake([SendTelemetry::class]);
+
+        config(['featureflags.telemetry.enabled' => true]);
+        config(['featureflags.telemetry.async' => true]);
+        config(['featureflags.telemetry.queue' => 'telemetry-queue']);
+        config(['featureflags.telemetry.batch_size' => 100]);
+
+        $mockApiClient = Mockery::mock(ApiClient::class);
+        $collector = new TelemetryCollector($mockApiClient);
+
+        $context = new Context('user-123');
+        $collector->record('flag-1', true, $context);
+        $collector->flush();
+
+        Bus::assertDispatched(SendTelemetry::class, function (SendTelemetry $job) {
+            return $job->queue === 'telemetry-queue';
+        });
+    }
+
+    public function test_sync_mode_calls_api_directly(): void
+    {
+        config(['featureflags.telemetry.enabled' => true]);
+        config(['featureflags.telemetry.async' => false]);
+        config(['featureflags.telemetry.batch_size' => 100]);
+
+        $mockApiClient = Mockery::mock(ApiClient::class);
+        // In sync mode, API should be called directly
+        $mockApiClient->shouldReceive('sendTelemetry')->once();
+
+        $collector = new TelemetryCollector($mockApiClient);
+
+        $context = new Context('user-123');
+        $collector->record('flag-1', true, $context);
+
+        $collector->flush();
+
         $this->assertEquals(0, $collector->pendingCount());
     }
 }

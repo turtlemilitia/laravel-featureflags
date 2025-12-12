@@ -65,8 +65,11 @@ class TelemetryCollector extends AbstractCollector
         return 'Failed to send feature flag telemetry';
     }
 
+    /**
+     * @return 'telemetry'
+     */
     protected function getTelemetryType(): string
     {
-        return 'evaluations';
+        return 'telemetry';
     }
 }
