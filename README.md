@@ -14,6 +14,7 @@ the [Turtle Militia](https://turtlemilitia.com) feature flags dashboard.
 - [Usage](#usage)
 - [Targeting Rules](#targeting-rules)
 - [Percentage Rollouts](#percentage-rollouts)
+- [Experiments](#experiments)
 - [Segments](#segments)
 - [Webhooks](#webhooks)
 - [Fallback Behavior](#fallback-behavior)
@@ -30,10 +31,11 @@ the [Turtle Militia](https://turtlemilitia.com) feature flags dashboard.
 - **Smart caching** - Syncs flag configuration and caches locally
 - **Targeting rules** - User-based targeting with flexible conditions
 - **Percentage rollouts** - Gradual rollouts with sticky bucketing
+- **Experiments** - A/B testing with automatic variant assignment
 - **Segments** - Reusable user groups
 - **Telemetry** - Evaluation tracking sent to dashboard
 - **Error tracking** - Correlate errors with feature flags (Sentry, Bugsnag, Flare)
-- **Conversion tracking** - A/B test analysis
+- **Conversion tracking** - Automatic attribution to flag variants
 - **Blade directives** - `@feature` directive for templates
 - **Auto-context** - Automatically resolves authenticated user context
 - **Cache warming** - `featureflags:warm` command for deployments
@@ -66,6 +68,12 @@ if (Feature::active('dark-mode')) {
 ```
 
 ## Configuration
+
+Publish the config file to customize settings:
+
+```bash
+php artisan vendor:publish --tag=featureflags-config
+```
 
 Most settings work via environment variables:
 
@@ -301,6 +309,73 @@ This rule matches **50% of pro users**:
 - **Per-flag bucketing**: Users may be in different buckets for different flags
 - **Combinable**: Use with other conditions for precise targeting (e.g., "25% of enterprise users in Europe")
 
+## Experiments
+
+Experiments enable A/B testing with automatic variant assignment. When you create an experiment on a flag in the dashboard, the package automatically assigns users to variants deterministically.
+
+### How It Works
+
+1. **Define variants** on a flag in the dashboard (e.g., `["blue", "red", "green"]` for a button color test)
+2. **Create an experiment** on that flag with a goal event (e.g., `purchase`)
+3. **Start the experiment** - the package now randomly assigns users to variants
+4. **Track conversions** - conversions are automatically attributed to the variant each user saw
+
+### Variant Assignment
+
+When an experiment is running, the package uses deterministic bucketing to assign users to variants:
+
+```php
+// User sees their assigned variant automatically
+$buttonColor = Feature::value('checkout-button-color');
+// Returns 'blue', 'red', or 'green' based on user's bucket
+```
+
+The assignment is:
+- **Deterministic**: Same user always gets the same variant for a given flag
+- **Even distribution**: Users are split evenly across all variants
+- **Sticky**: Assignment persists across sessions and requests
+
+### Evaluation Priority
+
+Flags are evaluated in this order:
+
+1. **Disabled** - Returns default value
+2. **Targeting rules** - If user matches a rule, returns rule value (rules always win)
+3. **Experiment** - If experiment is running, assigns user to a variant
+4. **Percentage rollout** - If configured, applies rollout logic
+5. **Default value** - Returns the flag's default
+
+This means targeting rules take precedence over experiments. Use this to:
+- Force specific users into a variant for QA testing
+- Exclude certain users from experiments entirely
+
+### Traffic Percentage (Holdout Groups)
+
+Experiments support traffic percentage for holdout groups:
+
+```
+Traffic: 80%
+├── 80% of users: Randomly assigned to variants (blue/red/green)
+└── 20% of users: Get the default value (control holdout)
+```
+
+Users in the holdout group are excluded from the experiment entirely and always see the default value.
+
+### Conversion Attribution
+
+Conversions are automatically linked to the flags evaluated in the same request:
+
+```php
+// User sees the checkout button (variant: 'red')
+$color = Feature::value('checkout-button-color');
+
+// Later in the same request or session...
+Feature::trackConversion('purchase', $user, ['revenue' => 99.99]);
+// Conversion is automatically attributed to 'checkout-button-color' = 'red'
+```
+
+The package tracks all flag evaluations during a request and includes them when sending conversion events. No manual attribution needed.
+
 ## Segments
 
 Segments are reusable user groups defined in the dashboard:
@@ -365,8 +440,25 @@ Track conversions for A/B test analysis:
 Feature::trackConversion('purchase', $user, ['revenue' => 99.99]);
 ```
 
-The dashboard automatically correlates conversions with flag evaluations based on context ID and session - no need to
-specify which flags are involved.
+### Automatic Flag Attribution
+
+Every conversion automatically includes all flags evaluated during the current request. The dashboard uses this to:
+
+- Attribute conversions to experiment variants
+- Calculate conversion rates per variant
+- Determine statistical significance
+
+No manual flag specification needed - the package handles attribution automatically.
+
+### Explicit Attribution
+
+For cases where you need to attribute a conversion to a specific flag (e.g., async jobs, webhooks):
+
+```php
+Feature::trackConversion('purchase', $user, [
+    'revenue' => 99.99,
+], flagKey: 'checkout-button-color', flagValue: 'red');
+```
 
 ## Error Tracking
 
