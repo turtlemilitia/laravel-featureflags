@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-12-12
+
+### Added
+
+- Async telemetry mode - dispatch telemetry to queue jobs instead of blocking requests
+
+## Fixed
+
+- `syncIfNeeded()` method to check cache validity before API calls on boot
+
 ## [0.1.1] - 2025-12-12
 
 ### Fixed
