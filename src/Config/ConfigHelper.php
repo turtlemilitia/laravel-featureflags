@@ -17,7 +17,15 @@ class ConfigHelper
     {
         $value = config($key, $default);
 
-        return is_int($value) ? $value : $default;
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_numeric($value)) {
+            return (int) $value;
+        }
+
+        return $default;
     }
 
     public static function float(string $key, float $default = 0.0): float
