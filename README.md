@@ -84,6 +84,8 @@ Most settings work via environment variables:
 | `FEATUREFLAGS_WEBHOOK_ENABLED`   | Enable webhook endpoint            |
 | `FEATUREFLAGS_WEBHOOK_SECRET`    | Webhook signature secret           |
 | `FEATUREFLAGS_TELEMETRY_ENABLED` | Send evaluation data to dashboard  |
+| `FEATUREFLAGS_TELEMETRY_ASYNC`   | Dispatch telemetry via queue jobs  |
+| `FEATUREFLAGS_TELEMETRY_QUEUE`   | Queue name for async telemetry     |
 | `FEATUREFLAGS_LOCAL_MODE`        | Use locally-defined flags          |
 | `FEATUREFLAGS_HOLD_UNTIL_CONSENT`| Hold telemetry until user consents |
 | `FEATUREFLAGS_CONSENT_TTL_DAYS`  | Days before consent expires (365)  |
@@ -716,6 +718,33 @@ Queue telemetry flushes to avoid hitting your plan's rate limit:
     ],
 ],
 ```
+
+### Async Mode (Recommended)
+
+By default, telemetry is sent synchronously at the end of each request. Enable async mode to dispatch telemetry to a queue job instead, preventing API latency from affecting response times.
+
+```env
+FEATUREFLAGS_TELEMETRY_ASYNC=true
+FEATUREFLAGS_TELEMETRY_QUEUE=telemetry  # Optional: specify queue name
+```
+
+Or in config:
+
+```php
+'telemetry' => [
+    'async' => env('FEATUREFLAGS_TELEMETRY_ASYNC', false),
+    'queue' => env('FEATUREFLAGS_TELEMETRY_QUEUE', null), // null = default queue
+],
+```
+
+**Requirements:**
+- A configured queue driver (Redis, database, SQS, etc.)
+- A running queue worker (`php artisan queue:work`)
+
+**Benefits:**
+- Telemetry API calls don't block your response
+- Failed sends are automatically retried (up to 3 times with 5-second backoff)
+- Queue workers can handle load spikes better than inline HTTP calls
 
 ## GDPR Compliance
 

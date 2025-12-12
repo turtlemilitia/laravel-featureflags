@@ -125,6 +125,22 @@ readonly class FlagService
     /**
      * @throws FlagSyncException When fallback behavior is 'exception' and sync fails
      */
+    public function syncIfNeeded(): void
+    {
+        if ($this->localModeEnabled) {
+            return;
+        }
+
+        if ($this->cacheEnabled && $this->cache->has()) {
+            return;
+        }
+
+        $this->sync();
+    }
+
+    /**
+     * @throws FlagSyncException When fallback behavior is 'exception' and sync fails
+     */
     public function sync(): void
     {
         if ($this->localModeEnabled) {

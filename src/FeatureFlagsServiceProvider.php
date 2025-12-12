@@ -127,7 +127,7 @@ class FeatureFlagsServiceProvider extends ServiceProvider
         }
 
         if (config('featureflags.sync.on_boot') && config('featureflags.api_key')) {
-            $this->app->make(FeatureFlags::class)->sync();
+            $this->app->make(FlagService::class)->syncIfNeeded();
         }
     }
 
