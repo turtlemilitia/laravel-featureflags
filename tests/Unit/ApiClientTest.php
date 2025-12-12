@@ -209,10 +209,8 @@ class ApiClientTest extends TestCase
 
         $this->assertArrayHasKey('flags', $result);
         $this->assertArrayHasKey('segments', $result);
-        $this->assertArrayHasKey('cache_ttl', $result);
         $this->assertCount(2, $result['flags']);
         $this->assertCount(1, $result['segments']);
-        $this->assertEquals(600, $result['cache_ttl']);
     }
 
     public function test_fetch_flags_uses_defaults_when_response_incomplete(): void
@@ -229,7 +227,6 @@ class ApiClientTest extends TestCase
 
         $this->assertEquals([], $result['flags']);
         $this->assertEquals([], $result['segments']);
-        $this->assertEquals(300, $result['cache_ttl']);
     }
 
     public function test_fetch_flags_throws_on_network_error(): void

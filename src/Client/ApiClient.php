@@ -40,7 +40,7 @@ class ApiClient
     }
 
     /**
-     * @return array{flags: array<int, array<string, mixed>>, segments: array<int, array<string, mixed>>, cache_ttl: int}
+     * @return array{flags: array<int, array<string, mixed>>, segments: array<int, array<string, mixed>>}
      * @throws ApiException
      */
     public function fetchFlags(): array
@@ -66,11 +66,10 @@ class ApiClient
 
             $this->recordSuccess();
 
-            /** @var array{flags?: array<int, array<string, mixed>>, segments?: array<int, array<string, mixed>>, cache_ttl?: int} $data */
+            /** @var array{flags?: array<int, array<string, mixed>>, segments?: array<int, array<string, mixed>>} $data */
             return [
                 'flags' => $data['flags'] ?? [],
                 'segments' => $data['segments'] ?? [],
-                'cache_ttl' => $data['cache_ttl'] ?? 300,
             ];
         } catch (GuzzleException $e) {
             $this->recordFailure();

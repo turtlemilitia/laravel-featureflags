@@ -151,8 +151,8 @@ readonly class FlagService
 
         try {
             $response = $this->apiClient->fetchFlags();
-            $this->cache->put($response['flags'], $response['cache_ttl']);
-            $this->cache->putSegments($response['segments'], $response['cache_ttl']);
+            $this->cache->put($response['flags']);
+            $this->cache->putSegments($response['segments']);
 
             $durationMs = (hrtime(true) - $startTime) / 1_000_000;
             $this->dispatchFlagSyncCompletedEvent(
